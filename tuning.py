@@ -109,8 +109,8 @@ PRESETS = {
                     "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                     "farm.crates": True, "farm.cubes": True, "mode.detect": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
-    "ffa": {"retreat.hp_enter": 0.55, "retreat.hp_exit": 0.90, "retreat.on_hunters": True,
-            "retreat.on_heavy_damage": True, "retreat.hold_fire": True, "fight.strafe": True,
+    "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+            "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
             "farm.crates": True, "farm.cubes": True, "farm.drones": True,
             "engage.near_m": 60.0, "engage.low_hp": 0.35, "engage.any_in_range": False,
             "mode.detect": False},
@@ -118,12 +118,12 @@ PRESETS = {
 
 
 FFA_OVERLAY = {
-    # retreat-to-heal: earlier retreat, heal to 90%, hold fire for quiet regen
-    "retreat.hp_enter": 0.55,
-    "retreat.hp_exit": 0.90,
-    "retreat.on_hunters": True,
-    "retreat.on_heavy_damage": True,
-    "retreat.hold_fire": True,
+    # retreat-to-heal: retreat earlier to preserve HP, but keep shooting back
+    "retreat.hp_enter": 0.50,
+    "retreat.hp_exit": 0.80,
+    "retreat.on_hunters": False,
+    "retreat.on_heavy_damage": False,
+    "retreat.hold_fire": False,
     # farming in FFA: silent cubes + safe crates & safe drones
     "farm.crates": True,
     "farm.cubes": True,

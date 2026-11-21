@@ -5,12 +5,13 @@ kill each other) or a free-for-all match (16 independent bots, where third parti
 eliminate each other).
 
 Detection rule:
-- If `alive` drops without our mech registering a `kill` event in `events`, an unassisted death
-  occurred.
-- Outside the last two zone phases (zone.radius > 70 m or zone.dps < 160 HP/s), an unassisted death
-  proves other bots are killing each other (free-for-all).
-- Inside the last two zone phases (late collapse), we require >= 2 unassisted deaths to rule out
-  squad mechs dying to the zone.
+- An unassisted death occurs when `alive` drops without our mech registering a `kill` event in `events`.
+- Before zone shrink begins (t < shrink_start, typically 60 s), the 560 m zone covers the entire map,
+  so zero zone damage can occur. In practice mode, house bots never shoot each other, so any unassisted
+  death before shrink_start is 100% proof of a Free-For-All match.
+- Between shrink_start and 120 s, we require >= 2 unassisted deaths.
+- After 120 s (2 minutes), if FFA was not detected, the match is permanently locked to "practice".
+  This completely guards against mid/late-game squad zone deaths triggering FFA in practice.
 - Once free-for-all mode is detected, the mode latches to "ffa" for the rest of the match and
   applies the free-for-all tuning overlay.
 """
@@ -25,11 +26,13 @@ class ModeDetector:
         self.last_alive: Optional[int] = None
         self.unassisted_deaths: int = 0
         self.mode: str = "practice"
+        self.locked: bool = False
 
     def reset(self) -> None:
         self.last_alive = None
         self.unassisted_deaths = 0
         self.mode = "practice"
+        self.locked = False
         tuning.set_mode("practice")
 
     def observe(self, obs: dict, zone) -> str:
@@ -38,6 +41,15 @@ class ModeDetector:
             return "practice"
         if self.mode == "ffa":
             return "ffa"
+        if self.locked:
+            return "practice"
+
+        t = float(obs.get("t", 0.0))
+        # After 120s (2 minutes), lock to practice. In FFA, multiple deaths happen in the first
+        # 30-60s. In practice, squad bots only die to us or mid/late zone collapse.
+        if t > 120.0:
+            self.locked = True
+            return "practice"
 
         alive = obs.get("alive")
         if alive is None:
@@ -49,11 +61,10 @@ class ModeDetector:
             unassisted = max(0, deaths - my_kills)
             if unassisted > 0:
                 self.unassisted_deaths += unassisted
-                dps = float(getattr(zone, "dps", 0.0))
-                r = float(getattr(zone, "radius", 1e9))
-                # Outside the last two zone phases: radius > 70 m or dps < 160 HP/s
-                outside_last_phases = (r > 70.0) or (dps < 160.0)
-                if outside_last_phases or self.unassisted_deaths >= 2:
+                shrink_start = float(getattr(zone, "shrink_start", 60.0))
+                # Before zone shrink starts (t < shrink_start), circle is 560m covering entire map.
+                # Any unassisted death is 100% FFA. Between shrink_start and 120s, require >= 2 unassisted deaths.
+                if t < shrink_start or self.unassisted_deaths >= 2:
                     self.mode = "ffa"
                     tuning.set_mode("ffa")
 
