@@ -252,10 +252,62 @@ Unknown ids fall back to a generic score by effect path (`mech.hp`, `mech.armor`
   **Done when:** all tests pass and the sandboxed `check.py` passes. Then **make the first practice submission (Q4)** to get a baseline score before Phase 4.
 
   **Results:** `combat.py` implements all of the above. 14 Phase 3 tests (49 total) pass. Simulated duel at 80 m against a randomly reversing strafer: 42/45 hits (93%), near the gun's maximum fire rate. Replaying the recorded match: 0 shots into walls, combat adds ~0.25 ms per decision. Sandboxed `check.py` passes. Not verifiable offline: real opponents' dodging, and the real server's lightning cone and laser/mortar behaviour.
-- [ ] **Phase 4: Strategy basics**
-  - Threat memory (vision, sound, damage events).
-  - `FARM` / `ROTATE` / `ENGAGE` / `RETREAT` / `HOLD` with hysteresis.
-  - Upgrade picker, pickup taking (`take`), cube collection.
+- [ ] **Phase 4: Strategy** (rewritten 2026-11-21 after the first practice score, 2.33)
+
+  **What practice actually is** (track page): 48 matches against **15 house bots acting as one squad**. They "share vision, never fight each other, and hunt you weakest first (one early, more as you thin them out, all of them late)." Qualifiers and finals are real free-for-alls between teams' bots (top 32 by best practice score qualify). The starter bot scores 1.15; leading teams score about 5–6. Submissions: 4 per hour, about 2 min to score; failed ones never lower the best score.
+
+  **Scoring consequences (practice)**
+  - House bots die only by our hand or the zone. Our place = mechs alive when we die, so **each kill is +1**. 2.33 ≈ 2.3 bots dead before us per match.
+  - **The final zone burn:** the last circle reaches radius 0 at about 6:55. Everyone is then outside at 260 HP/s, with no armor and no regen, so **the mech with the most HP dies last**. A 1400 HP house bot lasts ~5.4 s. With 10 cubes and 3 plating we'd have ~2,980 HP (~11.5 s), which could win the match even without kills (if house bots don't stack HP too).
+
+  **Decisions**
+  - **Strategy: hybrid (C).**
+    - Kill early lone hunters in controlled fights.
+    - Heal fully between fights.
+    - Collect cubes.
+    - Avoid fights against 3 or more hunters.
+    - Play for the final burn at full HP.
+  - **Modes:** detect practice vs free-for-all, **assuming practice until there is evidence of a free-for-all**. Free-for-all keeps the original survival-first plan (others fight each other; we stay healthy and let the field thin).
+  - **Upgrade ranking:**
+    1. nanites (first pick: full heal ~36 s → ~23 s);
+    2. plating up to 3 (max HP: every fight, the late all-hunters phase, the final burn);
+    3. second nanites;
+    4. armor;
+    5. then sensors, gyros, weapon perks for weapons we hold (gun rate/damage, lightning efficiency/range), servos, energy.
+
+    Unknown ids get a generic score from their `effects` paths. Always answer the offer on the tick it appears.
+  - **Build and test incrementally:** one change per submission, keep what raises the score.
+
+  **New modules**
+  - `threat.py`, the squad model:
+    - Per mech: last position and velocity, last seen time, HP, weapons, whether it's approaching or aiming at us.
+    - Sources: vision, the server's 5 s tracking, `damaged.by`, sound bearings.
+    - **Hunters** = mechs within ~150 m that hit us recently, are closing on us, or aim at us.
+    - **Shared vision:** if any hunter sees us, assume all of them know where we are.
+  - `strategy.py`, states with utility scores and hysteresis (at least ~1.5 s in a state unless a hard override fires):
+    - `ROTATE`: zone first (Phase 2 navigation).
+    - `FARM`: crates, isolated drones and cubes when no hunter is within ~120 m.
+    - `ENGAGE`: at most 1 hunter, or 2 when our HP is clearly higher. Peek-shoot from cover; prefer finishing low-HP targets (a kill is +1).
+    - `RETREAT`: HP below ~55%, 3+ hunters, or losing the HP race. Break line of sight from all known hunters, stop firing (regen needs no damage dealt), heal to ≥ 90%.
+    - `HOLD`: covered spot in the zone, scanning.
+    - `BURN`: from the second-to-last circle, be at full HP and at the final centre, so we're the last one outside.
+  - **Mode detection:**
+    - The `alive` count falling without one of our `kill` events means others are dying, which means a free-for-all.
+    - Guard against house bots dying to the zone: require such a drop outside the last two zone phases, or two such drops.
+  - **Cube collection:** walk over cubes (pickup radius 3.5 m) when safe, including those dropped by our kills.
+
+  **Experiment order** (one submission each; compare against 2.33)
+
+  | # | Change | What we learn |
+  | :--- | :--- | :--- |
+  | E1 | Upgrade picker + `RETREAT` heal cycles (+ threat model) | Does disengaging to heal raise placement? |
+  | E2 | Fight selection (`ENGAGE` only vs 1–2 hunters) + peek-shooting + kill finishing | Kill rate vs survival |
+  | E3 | Cube economy (`FARM`: crates, isolated drones, kill drops) | Do bigger HP/damage pay off? |
+  | E4 | Final-burn play (`BURN`) | Do house bots die to the zone? Can we outlast them? |
+  | E5 | Supply drops (full HP + 3 cubes) when the squad isn't on them | |
+  | E6 | Mode detection + free-for-all behaviour | Needed before qualifiers; no practice signal expected |
+
+  **Unknowns these experiments should reveal:** whether house bots die to the zone, collect cubes or upgrade; how fast hunters escalate after a kill; what "weakest first" means.
 - [ ] **Phase 5: Conformance and submit**
   - `python3 check/check.py -- python3 -u bot.py`
   - Docker run with match sandbox flags:
@@ -275,6 +327,6 @@ Unknown ids fall back to a generic score by effect path (`mech.hp`, `mech.armor`
 ## 7. Known Risks
 
 - **No local simulator:** behaviour bugs only show up as practice scores. Keep each submission's changes small enough to attribute score changes.
-- **House-bot behaviour is unknown:** don't assume coordinated squads; observe and adapt.
+- **Two different opponents:** practice is a 15-bot squad that shares vision and hunts us; qualifiers/finals are free-for-alls. The bot must detect which it is in (Phase 4).
 - **Multi-level geometry:** a ground-only grid misroutes near bridges and roof edges; verify those areas explicitly in Phase 1 tests.
 - **Growth with cubes:** larger radius and eye/muzzle height change paths and LOS; always read `self.stats`.
