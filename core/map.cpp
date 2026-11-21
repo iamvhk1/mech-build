@@ -37,18 +37,19 @@ bool point_in_prism2d(const Prism& p, double x, double y) {
     return in;
 }
 
-// Ground-layer standing height at a point. Prisms sorted by base: a prism we cannot fit under
+// Ground-layer standing height at a point. Slabs sorted by base: a prism we cannot fit under
 // becomes floor (its top), one at least a mech-height above the current floor is walked under.
-static double apply_floor_rule(const MechCore* h, double ground, std::vector<std::pair<float, float>>& bt,
-                               bool* on_prism, double* overhead) {
-    std::sort(bt.begin(), bt.end());
+// kind: 0 terrain, else prism kind + 1 (1 building, 2 stadium, 3 bridge).
+static double apply_floor_rule(const MechCore* h, double ground, std::vector<Slab>& bt,
+                               uint8_t* kind, double* overhead) {
+    std::sort(bt.begin(), bt.end(), [](const Slab& a, const Slab& b) { return a.base < b.base; });
     double s = ground, over = std::numeric_limits<double>::infinity();
-    bool onp = false;
+    uint8_t k = 0;
     for (auto& q : bt) {
-        if (q.first >= s + h->mech_h - 0.01) { over = q.first; break; }
-        if (q.second > s) { s = q.second; onp = true; }
+        if (q.base >= s + h->mech_h - 0.01) { over = q.base; break; }
+        if (q.top > s) { s = q.top; k = (uint8_t)(q.kind + 1); }
     }
-    if (on_prism) *on_prism = onp;
+    if (kind) *kind = k;
     if (overhead) *overhead = over;
     return s;
 }
@@ -57,14 +58,17 @@ double floor_at(const MechCore* h, double x, double y, bool* on_prism, double* o
     double gz = terrain_z(h, x, y);
     int bi, bj;
     int b = bucket_of(h, x, y, &bi, &bj);
-    std::vector<std::pair<float, float>> bt;
+    std::vector<Slab> bt;
     if (b >= 0) {
         for (int idx : h->pbuckets[b]) {
             const Prism& p = h->prisms[idx];
-            if (point_in_prism2d(p, x, y)) bt.emplace_back(p.base, p.top);
+            if (point_in_prism2d(p, x, y)) bt.push_back({p.base, p.top, p.kind});
         }
     }
-    return apply_floor_rule(h, gz, bt, on_prism, overhead);
+    uint8_t k;
+    double f = apply_floor_rule(h, gz, bt, &k, overhead);
+    if (on_prism) *on_prism = k != 0;
+    return f;
 }
 
 void build_buckets(MechCore* h) {
@@ -127,19 +131,24 @@ static void build_floor(MechCore* h) {
 
     h->floor1.assign(h->terr.begin(), h->terr.end());
     h->onprism1.assign(n, 0);
-    std::vector<std::pair<float, float>> bt;
+    h->kind1.assign(n, 0);
+    h->head1.assign(n, std::numeric_limits<float>::infinity());
+    std::vector<Slab> bt;
     for (size_t a = 0; a < cover.size();) {
         size_t b = a;
         int cell = cover[a].first;
         bt.clear();
         while (b < cover.size() && cover[b].first == cell) {
             const Prism& p = h->prisms[cover[b].second];
-            bt.emplace_back(p.base, p.top);
+            bt.push_back({p.base, p.top, p.kind});
             ++b;
         }
-        bool onp;
-        h->floor1[cell] = (float)apply_floor_rule(h, h->terr[cell], bt, &onp, nullptr);
-        h->onprism1[cell] = onp;
+        uint8_t k;
+        double over;
+        h->floor1[cell] = (float)apply_floor_rule(h, h->terr[cell], bt, &k, &over);
+        h->onprism1[cell] = k != 0;
+        h->kind1[cell] = k;
+        h->head1[cell] = (float)(over - h->floor1[cell]);
         a = b;
     }
 
@@ -269,6 +278,7 @@ MC_API void mc_grid_info(MechCore* h, int* out_i, double* out_d) {
 }
 
 MC_API int mc_get_layer(MechCore* h, int layer, float* out, int n) {
+    if (!h->built) return 0;
     int total = h->nnx * h->nny;
     if (!out || n < total) return 0;
     for (int c = 0; c < total; ++c) {

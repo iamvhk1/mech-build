@@ -193,10 +193,12 @@ Unknown ids fall back to a generic score by effect path (`mech.hp`, `mech.armor`
   - Multi-stage `Dockerfile` (compile `.so` in a builder image, copy it into `python:3.13-slim`).
   - Results: core build ~0.4 s; floor model within 5 mm of all 378 grounded positions in the recorded match; LOS ~2 µs/ray; A* cross-map avg ~1 ms (max ~5 ms), with threats avg ~2 ms (max ~9 ms); sandboxed `check.py` PASS, p99 < 4 ms.
   - Implementation notes: one clearance value per cell (not per-radius layers) covers cube growth; A* uses an inflated heuristic (1.3, or 2.0 with threat/zone penalties) for speed at ~2% longer paths; threat visibility is cached per 8 m block.
-- [ ] **Phase 2: Movement and zone**
+- [x] **Phase 2: Movement and zone** (done 2026-11-21)
   - Waypoint following, steering, ledge jumps (`jump` when blocked by > `step_up`).
-  - **Jump edges in the nav grid:** the Ohio Stadium field is a separate walkable island. Both tunnels end in a 3–7 m rise, too steep to walk; a jump (~2.75 m: `jump_speed`² / 2g) plus a short jet clears it. Add jump/jet edges so the bot can reach a final circle inside the stadium.
+  - **Jump edges in the nav grid:** the Ohio Stadium bowl is sealed by >= 10 m walls in the solid geometry (the `openings` gates in `world.json` are drawing-only scenery). Leaving works on foot (up the stands, off the outer edge); entering needs a ~10-13 m jump + jet (~15 energy).
   - Zone interpolation and early rotation to covered cells.
+  - Results: the core gained floor kind and headroom (grown mechs no longer plan under bridges they don't fit), jump and drop edges spanning up to 8 m in any direction (never onto building roofs), and waypoint kinds (walk/jump/drop). `zone.py`: interpolated circle, time until the edge reaches us, detection of live vs. static circle reporting during shrinks, covered destination inside the next circle. `navigation.py`: walk-first planning, jump plans only near islands and with enough energy, never two searches in one tick, jump + jet execution, stuck escalation (hop, sidestep, replan), boost only when outside or late, mortar-impact avoidance. Worst planning tick 19 ms; mini-simulator drives reach at least 28 of 30 street destinations and the stadium field.
+  - Not verifiable offline: the real server's jump/jet physics and wall sliding; the mini simulator (`tests/sim.py`) uses our own floor model.
 - [ ] **Phase 3: Combat basics**
   - Gun lead and range-dependent fire gate, reload logic.
   - Independent torso aim, rear-armor facing, scanning sweep.

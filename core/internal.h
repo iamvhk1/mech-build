@@ -15,6 +15,11 @@ struct Prism {
     std::vector<float> edges;
 };
 
+struct Slab {
+    float base, top;
+    int kind;
+};
+
 struct Tree {
     float x, y, z, height, crown_r, crown_base, trunk_r, cx, cy;
     // derived
@@ -53,6 +58,8 @@ struct MechCore {
     std::vector<float> floor1;      // standing height, ground layer
     std::vector<uint8_t> onprism1;  // floor comes from a prism top
     std::vector<uint8_t> wall1;     // higher than a neighbour beyond step/slope
+    std::vector<uint8_t> kind1;     // what the floor is: 0 terrain, 1 building, 2 stadium, 3 bridge
+    std::vector<float> head1;       // headroom above the floor (inf = open sky)
 
     // nav grid (2 m), cell (i, j) <-> lattice (2i, 2j)
     int nnx = 0, nny = 0;
@@ -61,12 +68,16 @@ struct MechCore {
     std::vector<uint8_t> nclear;   // clearance in 0.25 m units
     std::vector<uint8_t> nedges;   // bit d: move toward DIR[d] allowed (height rules only)
     std::vector<uint8_t> ncover;   // 0..16
+    std::vector<uint8_t> nkind;    // floor kind (see kind1)
+    std::vector<uint8_t> nhead;    // headroom in 0.25 m units, 255 = open sky / >= 63.75 m
+    std::vector<uint8_t> nrise;    // per cell x 8 dirs: max height gained along the edge, 0.25 m units
     std::vector<int> ncomp;
     int ground_comp = -1;
 
     // A* scratch
     std::vector<float> g;
     std::vector<int> parent;
+    std::vector<uint8_t> pjump;     // the edge into this cell was a jump
     std::vector<uint32_t> gen, closed_gen;
     uint32_t cur_gen = 0;
     int tcnx = 0, tcny = 0;            // threat-cache blocks (4x4 nav cells)

@@ -23,6 +23,8 @@ _KINDS = {"building": 0, "stadium": 1, "bridge": 2}
 _TREE_FIELDS = ("x", "y", "z", "height", "crownR", "crownBase", "trunkR", "crownX", "crownY")
 _MAX_PATH = 512
 
+WALK, JUMP, DROP = 0, 1, 2
+
 LAYER_FLOOR, LAYER_CLEARANCE, LAYER_COMPONENT, LAYER_GROUND, LAYER_COVER, LAYER_EDGES = range(6)
 
 _dbl = C.c_double
@@ -63,10 +65,10 @@ def _load() -> C.CDLL:
         "mc_vision_los": (C.c_int, [_ph] + [_dbl] * 6),
         "mc_shot_los_batch": (None, [_ph, C.c_int, _pd, _pd]),
         "mc_vision_los_batch": (None, [_ph, C.c_int, _pd, _pu8]),
-        "mc_can_see": (C.c_int, [_ph] + [_dbl] * 10),
+        "mc_can_see": (C.c_int, [_ph] + [_dbl] * 11),
         "mc_nearest_walkable": (C.c_int, [_ph, _dbl, _dbl, _dbl, C.c_int, _pd]),
-        "mc_segment_walkable": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl]),
-        "mc_find_path": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _pd, C.c_int, _pd, _dbl, _dbl, C.c_int, _pd, C.c_int]),
+        "mc_segment_walkable": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl]),
+        "mc_find_path": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _pd, C.c_int, _pd, _dbl, _dbl, C.c_int, _pd, C.c_int]),
         "mc_steer": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _pd, _pd, C.c_int, _pd, _pd]),
         "mc_gun_lead": (C.c_int, [_dbl] * 11 + [_pd]),
         "mc_mortar_pitch": (C.c_int, [_dbl] * 9 + [C.c_int, _dbl, _dbl, _pd]),
@@ -171,7 +173,7 @@ class MapCore:
         self.load_ms = (time.perf_counter() - t0) * 1000.0
 
         # reusable buffers
-        self._path_buf = (C.c_double * (2 * _MAX_PATH))()
+        self._path_buf = (C.c_double * (3 * _MAX_PATH))()
         self._xy = (C.c_double * 2)()
         self._out3 = (C.c_double * 3)()
         self._out4 = (C.c_double * 4)()
@@ -277,14 +279,18 @@ class MapCore:
             return None
         return self._xy[0], self._xy[1]
 
-    def segment_walkable(self, a: Sequence[float], b: Sequence[float], radius: float) -> bool:
-        return bool(self._lib.mc_segment_walkable(self._h, a[0], a[1], b[0], b[1], radius))
+    def segment_walkable(self, a: Sequence[float], b: Sequence[float], radius: float, height: float = 0.0) -> bool:
+        """Straight walk a->b with no jumps. height: mech height for headroom (0 = base)."""
+        return bool(self._lib.mc_segment_walkable(self._h, a[0], a[1], b[0], b[1], radius, height))
 
-    def find_path(self, start: Sequence[float], goal: Sequence[float], radius: float,
-                  threats: Sequence[Sequence[float]] = (), zone: Optional[Sequence[float]] = None,
-                  cover_weight: float = 0.0, h_weight: Optional[float] = None,
-                  max_expansions: int = 60000) -> Optional[List[Tuple[float, float]]]:
-        """Waypoints from start to goal (start excluded, snapped goal included), or None.
+    def find_path_ex(self, start: Sequence[float], goal: Sequence[float], radius: float, height: float = 0.0,
+                     max_jump_rise: float = 0.0, threats: Sequence[Sequence[float]] = (),
+                     zone: Optional[Sequence[float]] = None, cover_weight: float = 0.0,
+                     h_weight: Optional[float] = None,
+                     max_expansions: int = 60000) -> Optional[List[Tuple[float, float, int]]]:
+        """Waypoints (x, y, kind) from start to goal (start excluded, snapped goal included), or None.
+        kind: WALK (0), JUMP (1: reaching it needs a jump) or DROP (2: walk off a ledge to reach it). height: mech height for headroom (0 = base).
+        max_jump_rise: allow steps up to this height as jumps (0 = walk only; never onto roofs).
         threats: (x, y, range, weight) up to 8. zone: (cx, cy, r, penalty) or None.
         h_weight: heuristic inflation; default 1.3, or 2.0 when penalties are active (they raise
         step costs, so a plain heuristic explores far more cells: measured 8 ms vs 2 ms average)."""
@@ -293,12 +299,19 @@ class MapCore:
             h_weight = 2.0 if (th or zone) else 1.3
         tbuf = _darr([v for t in th for v in t[:4]])
         zbuf = _darr(list(zone[:4])) if zone else None
-        n = self._lib.mc_find_path(self._h, start[0], start[1], goal[0], goal[1], radius, tbuf, len(th), zbuf,
-                                   cover_weight, h_weight, max_expansions, self._path_buf, _MAX_PATH)
+        n = self._lib.mc_find_path(self._h, start[0], start[1], goal[0], goal[1], radius, height, max_jump_rise,
+                                   tbuf, len(th), zbuf, cover_weight, h_weight, max_expansions,
+                                   self._path_buf, _MAX_PATH)
         if n <= 0:
             return None
         b = self._path_buf
-        return [(b[2 * k], b[2 * k + 1]) for k in range(n)]
+        return [(b[3 * k], b[3 * k + 1], int(round(b[3 * k + 2]))) for k in range(n)]
+
+    def find_path(self, start: Sequence[float], goal: Sequence[float], radius: float,
+                  **kw) -> Optional[List[Tuple[float, float]]]:
+        """Like find_path_ex, but returns (x, y) waypoints only."""
+        p = self.find_path_ex(start, goal, radius, **kw)
+        return None if p is None else [(x, y) for x, y, _ in p]
 
     def steer(self, pos: Sequence[float], waypoint: Sequence[float], radius: float, speed: float,
               zone: Optional[Sequence[float]] = None, shells: Sequence[Sequence[float]] = (),

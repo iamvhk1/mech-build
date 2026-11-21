@@ -86,15 +86,21 @@ MC_API int mc_can_see(MechCore* h, double ox, double oy, double eye_z, double ai
 /* Navigation. */
 MC_API int mc_nearest_walkable(MechCore* h, double x, double y, double radius, int ground_only,
                                double* out_xy);
-MC_API int mc_segment_walkable(MechCore* h, double ax, double ay, double bx, double by, double radius);
-/* threats: n * 4 doubles (x, y, range, weight). zone: 4 doubles (cx, cy, r, penalty) or NULL.
+/* height: mech height for headroom under bridges (<= 0: base mech height). */
+MC_API int mc_segment_walkable(MechCore* h, double ax, double ay, double bx, double by, double radius,
+                               double height);
+/* height: mech height (<= 0: base). max_jump_rise: allow steps up to this many meters as jumps
+ * (0 = walk only; never onto building roofs). threats: n * 4 doubles (x, y, range, weight).
+ * zone: 4 doubles (cx, cy, r, penalty) or NULL.
  * h_weight >= 1 inflates the heuristic (1 = optimal, 1.3 = much faster, slightly longer paths).
- * Writes waypoints (excluding start, including snapped goal) to out_xy (2 doubles each).
+ * Writes waypoints (excluding start, including snapped goal) to out_xyj, 3 doubles each:
+ * x, y, kind (0 = walk, 1 = jump needed to reach it, 2 = drop off a ledge to reach it).
  * Returns number of waypoints, or <0 on failure (-1 no start, -2 no goal, -3 no path). */
 MC_API int mc_find_path(MechCore* h, double sx, double sy, double gx, double gy, double radius,
+                        double height, double max_jump_rise,
                         const double* threats, int n_threats, const double* zone,
                         double cover_weight, double h_weight, int max_expansions,
-                        double* out_xy, int max_pts);
+                        double* out_xyj, int max_pts);
 
 /* 16-direction local steering. zone: 3 doubles (cx, cy, r) or NULL. shells: n * 4 doubles
  * (x, y, splash_radius, seconds_to_impact). weights: 4 doubles (align, clear, zone, shell) or NULL.

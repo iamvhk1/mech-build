@@ -1,8 +1,9 @@
-"""Mech Royale bot entrypoint (Phase 1).
+"""Mech Royale bot entrypoint.
 
-Phase 1 scope: build the C++ map core at `hello`, then walk toward the next zone centre along an
-A* path. Combat is still the kit example's (aim at the nearest mech, hold both triggers); the real
-combat, strategy and upgrade logic land in Phases 2-4 (docs/implementation_plan.md).
+Phase 2 scope: track the zone, pick a covered destination inside the next circle, and get there on
+time (walking A* first, jumps/jets when walking can't reach, unsticking, boost only when late or
+outside). Combat is still the kit example's (aim at the nearest mech, hold both triggers); real
+combat, strategy and upgrades land in Phases 3-4 (docs/implementation_plan.md).
 
 If the core fails to load, the bot falls back to straight-line movement instead of crashing.
 """
@@ -15,6 +16,8 @@ from typing import List, Optional, Tuple
 
 import debug_draw as dbg
 import mechfight as mf
+from navigation import Navigator, boost_policy
+from zone import Zone, choose_destination
 
 try:
     import core_api
@@ -22,10 +25,7 @@ except Exception:  # pragma: no cover - only when the shared library is missing
     core_api = None  # type: ignore[assignment]
     mf.log("core_api import failed:\n" + traceback.format_exc())
 
-REPLAN_TICKS = 20        # replan at most every 1 s of match time (20 sim ticks)
-GOAL_MOVED_M = 8.0       # ...or when the goal moved this far
-WAYPOINT_REACHED_M = 3.0
-OFF_PATH_M = 12.0        # replan if we drift this far from the next waypoint's line
+DEST_REFRESH_S = 5.0     # re-pick the destination at least this often (cover vs. where we are)
 
 
 class Bot:
@@ -42,44 +42,38 @@ class Bot:
                        f"grid {self.core.nnx}x{self.core.nny}")
             except Exception:
                 mf.log("core unavailable, using straight-line movement:\n" + traceback.format_exc())
-        self.path: List[Tuple[float, float]] = []
-        self.path_goal: Optional[Tuple[float, float]] = None
-        self.path_tick = -10 ** 9
+        self.zone = Zone()
+        self.nav = Navigator(self.core, self.cfg)
+        self.dest: Optional[Tuple[float, float]] = None
+        self.dest_key = None
+        self.dest_t = -1e9
+        w = self.cfg["weapons"]["mortar"]
+        self.shell_g = float(w.get("gravity", 22.0))
+        self.shell_splash = float(w.get("splash_radius", 7.0)) + 1.5
 
-    # ------------------------------------------------------------ navigation
+    # ------------------------------------------------------------ helpers
 
-    def radius(self, me: dict) -> float:
-        st = me.get("stats") or {}
-        if "radius" in st:
-            return float(st["radius"])
-        base = self.cfg["mech"]["radius"]
-        return base * (1 + self.cfg["cubes"].get("size_per_cube", 0) * me.get("cubes", 0))
-
-    def plan(self, pos: Tuple[float, float], goal: Tuple[float, float], radius: float, tick: int) -> None:
-        self.path_goal = goal
-        self.path_tick = tick
-        self.path = []
+    def incoming_shells(self, obs: dict) -> List[Tuple[float, float, float, float]]:
+        """Predicted landing points of visible enemy mortar shells: (x, y, splash, seconds)."""
+        out = []
         if self.core is None:
-            return
-        p = self.core.find_path(pos, goal, radius)
-        if p:
-            self.path = p
+            return out
+        for p in obs.get("projectiles") or []:
+            if p.get("kind") != "mortar":
+                continue
+            hit = self.core.shell_impact(p["pos"], p["vel"], self.shell_g, 8.0)
+            if hit is not None:
+                out.append((hit[0], hit[1], self.shell_splash, hit[3]))
+        return out[:8]
 
-    def navigate(self, pos: Tuple[float, float], goal: Tuple[float, float], radius: float, tick: int) -> List[float]:
-        if (self.path_goal is None or math.dist(goal, self.path_goal) > GOAL_MOVED_M
-                or tick - self.path_tick >= REPLAN_TICKS or not self.path
-                or math.dist(pos, self.path[0]) > OFF_PATH_M + 24.0):
-            self.plan(pos, goal, radius, tick)
-        while len(self.path) > 1 and math.dist(pos, self.path[0]) < WAYPOINT_REACHED_M:
-            self.path.pop(0)
-        target = self.path[0] if self.path else goal
-        if math.dist(pos, target) < 1.0:
-            return [0.0, 0.0]
-        if self.core is not None:
-            dx, dy, _ = self.core.steer(pos, target, radius, 11.7)
-            return [dx, dy]
-        yaw = math.atan2(target[1] - pos[1], target[0] - pos[0])
-        return [math.cos(yaw), math.sin(yaw)]
+    def destination(self, me: dict, t: float) -> Tuple[float, float]:
+        nxt = self.zone.next_circle()
+        key = (round(nxt[0]), round(nxt[1]), round(nxt[2]))
+        if self.dest is None or key != self.dest_key or t - self.dest_t > DEST_REFRESH_S:
+            st = me.get("stats") or {}
+            self.dest = choose_destination(self.core, self.zone, me["pos"], float(st.get("radius", 2.5)))
+            self.dest_key, self.dest_t = key, t
+        return self.dest
 
     # ------------------------------------------------------------ decision
 
@@ -87,7 +81,7 @@ class Bot:
         t0 = time.perf_counter()
         me = obs["self"]
         x, y, z = me["pos"]
-        goal = tuple(obs["zone"]["next_center"][:2])
+        t = float(obs["t"])
         act: mf.Action = {"tick": obs["tick"]}
         if obs.get("offer"):
             act["pick"] = 0  # Phase 4: effect-scored upgrade picker
@@ -95,21 +89,30 @@ class Bot:
         if me["weapons"][1] is None and near and near[0]["kind"] != "gun":
             act["take"] = near[0]["id"]
 
-        move = self.navigate((x, y), goal, self.radius(me), int(obs["tick"]))
-        act["move"] = move
-        act["boost"] = not me["in_zone"]
-        yaw = math.atan2(move[1], move[0]) if move != [0.0, 0.0] else me["aim"][0]
-        act["aim"] = [yaw, 0.0]
+        # ---- zone and movement
+        self.zone.update(obs["zone"], t)
+        dest = self.destination(me, t)
+        self.nav.set_goal(dest)
+        walk = float((me.get("stats") or {}).get("walk_speed", self.cfg["mech"]["walk_speed"]))
+        eta = self.nav.path_length((x, y)) / max(1.0, walk)
+        inside = bool(me.get("in_zone", True))
+        urgent = boost_policy(me, inside, self.zone.time_until_outside((x, y)), eta)
+        mv = self.nav.step(obs, urgent=urgent, zone_circle=self.zone.current(), shells=self.incoming_shells(obs))
+        act.update(mv)
 
+        # ---- aim and fire (kit example; Phase 3 replaces this)
+        move = mv["move"]
+        yaw = math.atan2(move[1], move[0]) if (move[0] or move[1]) else me["aim"][0]
+        act["aim"] = [yaw, 0.0]
         enemies = sorted((m for m in obs["mechs"] if m["kind"] == "mech"), key=lambda m: math.dist(m["pos"], me["pos"]))
         if enemies:
-            t = enemies[0]["pos"]
-            act["aim"] = [math.atan2(t[1] - y, t[0] - x), math.atan2(t[2] - z - 2.5, math.dist(t[:2], (x, y)))]
+            tp = enemies[0]["pos"]
+            act["aim"] = [math.atan2(tp[1] - y, tp[0] - x), math.atan2(tp[2] - z - 2.5, math.dist(tp[:2], (x, y)))]
             act["fire"] = [True, True]
 
-        dbg.path((x, y), self.path, z + 1.0)
-        dbg.goal(goal, z)
-        dbg.label("rotate", (time.perf_counter() - t0) * 1000)
+        dbg.path((x, y), self.nav.path, z + 1.0)
+        dbg.goal(dest, z)
+        dbg.label(self.nav.last_debug, (time.perf_counter() - t0) * 1000)
         return act
 
 
