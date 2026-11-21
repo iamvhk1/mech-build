@@ -130,6 +130,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 20 | `mode_detect` (run D1b) | `c923e9b` | **3.38** | Hardened mode detection + safe FFA overlay: 3.38 vs 3.38 (exact match, zero regression on practice). Pre-shrink check (t < 60s) avoids false triggers on squad zone deaths, and 120s lock prevents late-game false triggers. Mode detection is now proven safe for practice while providing crucial survival adaptation in qualifiers/finals. Kept; incorporated into `best`. Baseline remains **3.38**. |
 | 21 | `burn` (run Z1) | `9edce64` | 3.38 | Final burn positioning on the 3.38 baseline: 3.38 vs 3.38 (exact tie). In practice against the 15-bot squad, matches rarely reach the final 25 m collapse at ~6:55, so practice score is dominated by early/mid-game kills. Center holding and suppressed retreat are essential in FFA end-games where surviving the 260 DPS burn decides 1st place. Kept off in practice `best`; enabled in `FFA_OVERLAY`. Baseline remains **3.38**. |
 | 22 | `drops` (run F1) | `5bfc603` | 2.81 | Safe supply drop contesting on the 3.38 baseline: 2.81 vs 3.38 (−0.57). Capturing an 8 m drop ring on open ground inside the closing circle pulls the bot into central crossfire where the 15-bot squad concentrates, leading to fatal focus-fire. Kept OFF in `best`. Retained in `FFA_OVERLAY` where enemy mechs scatter and +3 cubes + full HP heal is valuable in quiet pockets. Baseline remains **3.38**. |
+| 23 | `near40` (run G1) | pending | pending | Tighter engagement distance (40 m vs 60 m baseline) on the 3.38 baseline. Avoids picking long-range fights with distant squad members, keeping engagements fast and decisive. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -249,7 +250,7 @@ Stage F complete! Best score remains **3.38**. Next: Stage G (tuning sweeps on `
 
 Three values each for the settings that mattered, one run per value. Expect about 2–3 runs per
 setting:
-- `engage.near_m`: 90 tested in `near90`; then 40 (and 30 if 40 wins), or 120 if 90 wins
+- `engage.near_m`: **Run G1 (`near40`) in progress** (40 m vs 60 m baseline); then 30 if 40 wins, or test 90
 - `retreat.hp_enter` (0.25 / 0.35 / 0.45)
 - `retreat.hp_exit` (0.7 / 0.8 / 0.9)
 - `lightning.reserve` (10 / 20 / 30)
