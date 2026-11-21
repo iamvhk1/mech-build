@@ -57,7 +57,7 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Engage within 60 m / below 35% HP (Phase 3) | Baseline behaviour | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes) | 60 m / 35% | keep, maybe stricter |
 | Lightning first, late mortar swap with laser check | Not tested separately | Same logic | Weapon triangle applies in both modes | as is | as is |
 | Trigger timing fix (always on) | **Good** (2.90, +0.36) | Positive | Bug fix: up to ~20% more gun damage in every fight | on | on |
-| Blind fire at unseen attackers (`fight.blind_fire`) | pending (run B2); duel screen: 37/40 wins vs 23/40 | Positive, less often needed | Practice: shared vision lets a bot shoot us through trees we can't see through. FFA: vision is symmetric, so rarer, but firing back at whoever is hitting us is still right | per result | on |
+| Blind fire at unseen attackers (`fight.blind_fire`) | **Bad** (2.40, −0.50), despite the duel screen predicting 37/40 wins | Unknown, likely bad for the same reasons | Bearings can point at blasts or arc origins, guessed shots waste the magazine, and gunfire reveals us | off | off |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
@@ -95,6 +95,7 @@ applied once mode detection says free-for-all.
 | 6 | `roof_camp` (run 2) | `6140823` | 2.23 | Roof camping on top of the 2.54 baseline: worse (−0.31). Either the squad handles roofs fine (climbs, mortars, sees us) or our climbing fails on the real server; can't tell without diagnostics. Roofs off for practice; switch kept for a later re-test. |
 | 7 | `picker_aggressive` (run 1d) | `075cef9` | 2.02 | Shoot any visible mech in range, on the 2.54 baseline: clearly worse (−0.52, ~25 places). Long-range fights against a squad that shares vision cost more than they earn. E2 should pick fights carefully; try a shorter `engage.near_m` (40 m) in Stage G. |
 | 8 | `best` + trigger-timing fix (run B0) | `b47593e` | **2.90** | New best (+0.36 over 2.54, ~17 places). Bug fix: hold the trigger when the weapon is ready before the next decision. |
+| 9 | `blind` (run B2) | `69d2b6a` | 2.40 | Blind fire on the 2.90 best: clearly worse (−0.50). The duel's assumption (attackers often hidden by foliage) doesn't hold in real matches, or blind shots hurt: the damage bearing points at mortar blasts or arc origins rather than shooters, guessed shots waste the magazine before real targets appear, and gunfire reveals us. Off in both modes. Lesson: the duel harness found a real bug but mispredicted house-bot behaviour. |
 
 ## Batch 1 (planned, in order)
 
