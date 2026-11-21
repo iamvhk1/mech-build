@@ -199,11 +199,59 @@ Unknown ids fall back to a generic score by effect path (`mech.hp`, `mech.armor`
   - Zone interpolation and early rotation to covered cells.
   - Results: the core gained floor kind and headroom (grown mechs no longer plan under bridges they don't fit), jump and drop edges spanning up to 8 m in any direction (never onto building roofs), and waypoint kinds (walk/jump/drop). `zone.py`: interpolated circle, time until the edge reaches us, detection of live vs. static circle reporting during shrinks, covered destination inside the next circle. `navigation.py`: walk-first planning, jump plans only near islands and with enough energy, never two searches in one tick, jump + jet execution, stuck escalation (hop, sidestep, replan), boost only when outside or late, mortar-impact avoidance. Worst planning tick 19 ms; mini-simulator drives reach at least 28 of 30 street destinations and the stadium field.
   - Not verifiable offline: the real server's jump/jet physics and wall sliding; the mini simulator (`tests/sim.py`) uses our own floor model.
-- [ ] **Phase 3: Combat basics**
-  - Gun lead and range-dependent fire gate, reload logic.
-  - Independent torso aim, rear-armor facing, scanning sweep.
-  - Lightning with the nearest-target check.
-  - Mortar shell dodging.
+- [x] **Phase 3: Combat basics** (done 2026-11-21; decisions Q1–Q4 settled the same day)
+
+  **Goal:** the bot shoots well when it shoots, never wastes shots into walls or onto drones, and keeps its front toward whoever is hurting it. *Who* to fight and *when* to disengage is Phase 4 (strategy); Phase 3 provides the mechanics and a simple default policy.
+
+  **Facts from the config and the recorded match**
+  - Torso turns at `turn_rate` 4 rad/s, so 0.4 rad (23°) per decision; pitch 3 rad/s, limits −0.7…1.3. Shots leave along the *actual* aim (`self.aim`), not the commanded one.
+  - Gun: 45 dmg, 0.24 s, 252 m/s, 230 m range, 0.6° spread, 12-round mag, 2.4 s reload. The shot spawns 3 m out along the aim.
+  - Lightning: 60 dmg, 0.25 s, 45 m, cone 30°, 3 energy per shot, chains 2× within 14 m. It hits the **nearest** mech, drone or crate in the cone with line of sight.
+  - Rear hits (outside ±90° of aim yaw) take ×1.5.
+  - The server keeps reporting a seen mech's **true** position for 5 s after it leaves view, and trees don't stop shots, so a target that just went behind trees can still be shot.
+  - Every opponent in the recorded match carried **gun + laser**, so expect lasers.
+
+  **New module `combat.py`**
+  1. **Target model:** for each visible or tracked mech: position, velocity, centre height (`height × (1 + 0.05 × cubes) / 2`), radius, HP, weapons, `charging`, whether its aim points at us (within ~4°), and the time it last hit us (from `damaged.by`).
+  2. **Torso priority** (one aim per decision):
+     - (a) The engage target: the gun lead solution.
+     - (b) Otherwise the most recent attacker (≤ 3 s): face it, so hits land on the front.
+     - (c) Otherwise a visible mech aiming at us or charging a laser: face it.
+     - (d) Otherwise scan: aim along our movement, sweeping ±50° every ~2 s, and toward any `gun`/`laser`/`laser_charge` sound heard in the last 2 s.
+  3. **Gun:**
+     - Aim at `gun_lead(muzzle, target centre, target velocity, speed, radius + 0.5)`, with muzzle = `pos.z + stats.muzzle_height`.
+     - **Fire only if all hold:** the actual aim is within `atan(target radius / distance) + spread` of the solution in yaw, and within the same tolerance in pitch; distance ≤ range; `shot_los` from the shot spawn point to the aim point is clear; ammo > 0 and cooldown 0.
+     - **Reload early** when no target has been in range for 1.5 s and ammo < half a magazine. Never fire into a known wall.
+  4. **Lightning** (only if held): fire only when the intended target is within ±15° of the actual aim and inside range with `shot_los`, **and** no other candidate (mech, drone or crate) is closer within ±30°. That's safe whether `cone_deg` means a half-angle or a full angle. Keep ≥ 20 energy for jumps unless the target is within 20 m. Also fire at any laser-charging mech in range, since lightning cancels its charge.
+  5. **Laser threat reflex (basic):** a visible mech with `charging: true` whose aim is within ~4° of us. Lightning it if in range; otherwise face it (front armour); if cover is reachable within ~1 s, ask navigation to break line of sight (a short side-goal). Strafing alone is useless against a tracking hitscan beam.
+  6. **Default engagement policy until Phase 4 (Q1: opportunistic):** the gun takes a mech only if it hit us in the last 5 s, or it is within 60 m, or its HP is below 35% and it is in range. Otherwise hold fire (gunfire is heard up to 320 m, and dealing damage resets our regen timer) and keep rotating.
+  7. **Drones (Q3: only if they attack us):** never target a drone unless it damaged us in the last 5 s. Lightning's nearest-target check prevents hitting one by accident. Deliberate farming is Phase 4.
+  8. **Slot-1 weapon policy (Q2):**
+     - **Lightning first, all match.** Take a lightning pickup into an empty slot, or in place of a laser/mortar we're holding, when out of combat (no enemy within 50 m).
+     - **Late-game mortar swap (lightning → mortar)** only if all hold:
+       - the zone radius is ≤ 70 m;
+       - a mortar pickup is within ~25 m and inside the zone;
+       - no enemy is within 50 m;
+       - **laser majority check:** among nearby known mechs (seen or tracked within 150 m, plus `laser`/`laser_charge` sounds heard in the last 10 s), **fewer than half carry a laser**. A mech holding a mortar takes +60% from lasers (cook-off). If no mechs are known nearby, this check passes.
+     - **Mortar use:** `mortar_pitch` lob at visible or tracked targets, including behind cover. Never fire when the predicted impact is within 12 m of us (50% self-splash, plus knockback). Prefer shots whose blast pushes the target toward the zone edge (zone damage is 160–260 HP/s in the last circles). After taking it, wait out the 2.6 s equip delay.
+     - Don't take lasers. If we somehow hold one (e.g. no other option), use a minimal controller: charge to ≥ 0.65 s with a stable target, release when on target, never charge within 45 m of a lightning carrier.
+
+  **Integration:** `bot.py` calls `combat.decide(obs) → aim, fire, reload, nav hints`. Navigation keeps the legs; combat owns the torso. Shell dodging is already in steering (Phase 2).
+
+  **Tests**
+  - Fire-gate maths: no fire beyond tolerance; fire within it.
+  - Lightning safety: never fires when a drone or crate is closer in the cone.
+  - Torso priority order.
+  - Reload logic.
+  - Replay the recorded match: count how many gun shots the bot would fire into walls (target: 0) and how quickly the aim settles on visible mechs.
+  - Extend `tests/sim.py` with a scripted enemy (strafing, stopping, jumping) and simulated bullets. Target: **≥ 70% hits at 80 m on a strafing mech** and 0 shots fired outside the gate.
+  - Timing: the combat part adds < 2 ms per decision.
+
+  - Mortar policy: the swap triggers only under all guards, and the laser majority check counts seen, tracked and heard laser carriers. No mortar shot lands within 12 m of us.
+
+  **Done when:** all tests pass and the sandboxed `check.py` passes. Then **make the first practice submission (Q4)** to get a baseline score before Phase 4.
+
+  **Results:** `combat.py` implements all of the above. 14 Phase 3 tests (49 total) pass. Simulated duel at 80 m against a randomly reversing strafer: 42/45 hits (93%), near the gun's maximum fire rate. Replaying the recorded match: 0 shots into walls, combat adds ~0.25 ms per decision. Sandboxed `check.py` passes. Not verifiable offline: real opponents' dodging, and the real server's lightning cone and laser/mortar behaviour.
 - [ ] **Phase 4: Strategy basics**
   - Threat memory (vision, sound, damage events).
   - `FARM` / `ROTATE` / `ENGAGE` / `RETREAT` / `HOLD` with hysteresis.

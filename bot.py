@@ -1,9 +1,9 @@
 """Mech Royale bot entrypoint.
 
-Phase 2 scope: track the zone, pick a covered destination inside the next circle, and get there on
-time (walking A* first, jumps/jets when walking can't reach, unsticking, boost only when late or
-outside). Combat is still the kit example's (aim at the nearest mech, hold both triggers); real
-combat, strategy and upgrades land in Phases 3-4 (docs/implementation_plan.md).
+Phases 2-3: track the zone, pick a covered destination inside the next circle and get there on
+time (navigation.py); combat.py owns the torso and triggers (gun lead and fire gates, lightning
+nearest-target check, facing attackers, laser-threat reflex, slot-1 weapon policy). Strategy,
+farming and upgrades land in Phase 4 (docs/implementation_plan.md).
 
 If the core fails to load, the bot falls back to straight-line movement instead of crashing.
 """
@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 
 import debug_draw as dbg
 import mechfight as mf
+from combat import Combat, EVADE_HOLD_S
 from navigation import Navigator, boost_policy
 from zone import Zone, choose_destination
 
@@ -44,6 +45,9 @@ class Bot:
                 mf.log("core unavailable, using straight-line movement:\n" + traceback.format_exc())
         self.zone = Zone()
         self.nav = Navigator(self.core, self.cfg)
+        self.combat = Combat(self.cfg, self.core)
+        self.evade_goal: Optional[Tuple[float, float]] = None
+        self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
         self.dest_key = None
         self.dest_t = -1e9
@@ -82,39 +86,48 @@ class Bot:
         me = obs["self"]
         x, y, z = me["pos"]
         t = float(obs["t"])
+        st = me.get("stats") or {}
         act: mf.Action = {"tick": obs["tick"]}
         if obs.get("offer"):
             act["pick"] = 0  # Phase 4: effect-scored upgrade picker
-        near = [p for p in obs["pickups"] if math.dist(p["pos"][:2], (x, y)) < self.reach]
-        if me["weapons"][1] is None and near and near[0]["kind"] != "gun":
-            act["take"] = near[0]["id"]
 
-        # ---- zone and movement
         self.zone.update(obs["zone"], t)
-        dest = self.destination(me, t)
-        self.nav.set_goal(dest)
-        walk = float((me.get("stats") or {}).get("walk_speed", self.cfg["mech"]["walk_speed"]))
+        self.combat.observe(obs)
+        targets = self.combat.targets(obs)
+        walk = float(st.get("walk_speed", self.cfg["mech"]["walk_speed"]))
+
+        # ---- goal: escape a charging laser > wanted pickup (if the zone allows) > zone destination
+        goal = self.destination(me, t)
+        why = "rotate"
+        threat = self.combat.laser_threat(targets, [x, y, z + float(st.get("height", 9.0)) / 2])
+        if threat is not None and t >= self.evade_until:
+            cover = self.combat.cover_from(threat, me)
+            if cover is not None:
+                self.evade_goal, self.evade_until = cover, t + EVADE_HOLD_S
+        pickup = self.combat.wanted_pickup(obs, targets, self.zone)
+        if t < self.evade_until and self.evade_goal is not None:
+            goal, why = self.evade_goal, "evade laser"
+        elif pickup is not None:
+            d = math.dist(pickup["pos"][:2], (x, y))
+            if self.zone.time_until_outside(pickup["pos"]) > d / max(1.0, walk) + 10.0:
+                goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
+        self.nav.set_goal(goal)
+
+        # ---- legs
         eta = self.nav.path_length((x, y)) / max(1.0, walk)
         inside = bool(me.get("in_zone", True))
         urgent = boost_policy(me, inside, self.zone.time_until_outside((x, y)), eta)
         mv = self.nav.step(obs, urgent=urgent, zone_circle=self.zone.current(), shells=self.incoming_shells(obs))
         act.update(mv)
 
-        # ---- aim and fire (kit example; Phase 3 replaces this)
-        move = mv["move"]
-        yaw = math.atan2(move[1], move[0]) if (move[0] or move[1]) else me["aim"][0]
-        act["aim"] = [yaw, 0.0]
-        enemies = sorted((m for m in obs["mechs"] if m["kind"] == "mech"), key=lambda m: math.dist(m["pos"], me["pos"]))
-        if enemies:
-            tp = enemies[0]["pos"]
-            act["aim"] = [math.atan2(tp[1] - y, tp[0] - x), math.atan2(tp[2] - z - 2.5, math.dist(tp[:2], (x, y)))]
-            act["fire"] = [True, True]
+        # ---- torso and triggers
+        act.update(self.combat.decide(obs, mv["move"], targets, self.zone))
+        act.update(self.combat.take_action(obs, pickup))
 
         dbg.path((x, y), self.nav.path, z + 1.0)
-        dbg.goal(dest, z)
-        dbg.label(self.nav.last_debug, (time.perf_counter() - t0) * 1000)
+        dbg.goal(goal, z)
+        dbg.label(f"{why} | {self.nav.last_debug} | {self.combat.debug}", (time.perf_counter() - t0) * 1000)
         return act
-
 
 if __name__ == "__main__":
     mf.run(Bot)
