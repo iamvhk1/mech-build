@@ -40,6 +40,7 @@ submit on the track page, record the score here.
 | 0 | (starter bot) | – | 1.15 | Track baseline |
 | 1 | Phase 3 (= `p3`) | `956e3b7` | **2.33** | Movement + combat, first upgrade choice, no retreat |
 | 2 | E1 (= `e1`) | `62f6560` | 1.52 | Retreat with all triggers + hold fire + ranked upgrades: worse |
+| 3 | `p3` (run 1a) | `22ef4ff` | **2.33** | Noise check: identical to run 1. Scores are reproducible on these seeds, so any difference is caused by the change. |
 
 ## Batch 1 (planned, in order)
 
