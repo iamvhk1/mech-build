@@ -54,9 +54,10 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Last-resort retreat, keep firing (run 1c) | **Good** (2.54, +0.23) | Good, but weaker than early retreat | Saves us when nearly dead without giving up fights | on | superseded by early retreat |
 | Roof camping (run 2) | **Bad** (2.23, −0.31) | Unknown | Cause unclear (the squad copes with roofs, or our climbing fails on the real server). In a FFA a roof could be a safe overlook, but we have no evidence it works at all | off | off unless evidence |
 | Shoot any mech in range (run 1d) | **Bad** (2.02, −0.52) | **Likely bad** | Long-range fights reveal us, start fights we don't need, and invite third parties; placement comes from surviving, not kills | off | off (opportunistic) |
-| Engage within 60 m / below 35% HP (Phase 3) | Baseline behaviour | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes) | 60 m / 35% | keep, maybe stricter |
+| Engage within 60 m / below 35% HP (Phase 3) | Baseline behaviour; 90 m pending (`near90`) | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes) | 60 m / 35% (90 m pending) | keep 60 m or stricter |
 | Lightning first, late mortar swap with laser check | Not tested separately | Same logic | Weapon triangle applies in both modes | as is | as is |
 | Trigger timing fix (always on) | **Good** (2.90, +0.36) | Positive | Bug fix: up to ~20% more gun damage in every fight | on | on |
+| Shootability fix (always on): prefer targets we can shoot; aim at the visible part | pending (run B0b, next) | Positive | Bug fix: with two enemies, a hidden attacker blocked a clear shot at the other in 50/50 test cases; a low wall over the middle blocked shots at a visible upper body | on | on |
 | Blind fire at unseen attackers (`fight.blind_fire`) | **Bad** (2.40, −0.50), despite the duel screen predicting 37/40 wins | Unknown, likely bad for the same reasons | Bearings can point at blasts or arc origins, guessed shots waste the magazine, and gunfire reveals us | off | off |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
@@ -81,6 +82,11 @@ applied once mode detection says free-for-all.
 | `retreat.cornered_m` / `finish_hp` | 25 / 0.15 | Exceptions to holding fire |
 | `roof.enabled` | false | Climb a usable roof (6–20 m high, ≥150 m², 12 m inside the next circle) and fight from it |
 | `roof.peek_hp` | 0.5 | Step to the roof edge toward the nearest hunter only above this HP fraction |
+| `fight.cover` | false | B1: fight from cover (step out to fire, back to reload / after hits). Dropped offline |
+| `fight.blind_fire` | false | Fire back along the damage bearing at attackers we can't see. Off: 2.40 vs 2.90 |
+
+Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
+shootability (`Combat.shot_point`, target preference for shootable mechs; pending).
 
 ## Results
 
@@ -96,8 +102,10 @@ applied once mode detection says free-for-all.
 | 7 | `picker_aggressive` (run 1d) | `075cef9` | 2.02 | Shoot any visible mech in range, on the 2.54 baseline: clearly worse (−0.52, ~25 places). Long-range fights against a squad that shares vision cost more than they earn. E2 should pick fights carefully; try a shorter `engage.near_m` (40 m) in Stage G. |
 | 8 | `best` + trigger-timing fix (run B0) | `b47593e` | **2.90** | New best (+0.36 over 2.54, ~17 places). Bug fix: hold the trigger when the weapon is ready before the next decision. |
 | 9 | `blind` (run B2) | `69d2b6a` | 2.40 | Blind fire on the 2.90 best: clearly worse (−0.50). The duel's assumption (attackers often hidden by foliage) doesn't hold in real matches, or blind shots hurt: the damage bearing points at mortar blasts or arc origins rather than shooters, guessed shots waste the magazine before real targets appear, and gunfire reveals us. Off in both modes. Lesson: the duel harness found a real bug but mispredicted house-bot behaviour. |
+| 10 | `near90` | `56b50be` | *skipped* | Pushed but not submitted: the shootability fix (found by the audit) changes which target we shoot, which interacts with the engagement range, so `near90` is re-run on the fixed code. |
+| 11 | `best` + shootability fix (run B0b) | *next* | *pending* | Isolates the fix; compare 2.90. Then `near90` on the fixed code. |
 
-## Batch 1 (planned, in order)
+## Batch 1 (done)
 
 | Run | Preset | Question |
 | :--- | :--- | :--- |
@@ -108,7 +116,7 @@ applied once mode detection says free-for-all.
 
 ## Master plan (decided 2026-11-21; replaces the earlier roadmap)
 
-**Where we stand:** best 2.54 = we finish ~13.5th on average, so we die early in most matches.
+**Where we stand:** best **2.90** (run B0) = we finish ~13th on average, so we still die early in most matches.
 Leading teams score ~5–6; qualifying needs a top-32 best practice score. The plan is ordered by
 expected gain: first make fights winnable and survivable, then grow the HP/damage pool, then
 secure the free-for-all behaviour, then play for the end of the match, then tune.
@@ -124,10 +132,11 @@ secure the free-for-all behaviour, then play for the end of the match, then tune
   what only real house bots can answer.
 - **Regression guard:** the best preset gets a `best` alias in `tuning.py`, and the active preset
   is always best + one change.
-- **Before each push:** full tests, the sanitizer build, `check.py`, and the sandboxed
-  `tools/check_docker.sh`.
+- **Before each push:** code changes get the full set (tests, the sanitizer build, `check.py`,
+  the sandboxed `tools/check_docker.sh`); preset-only changes get the tests (incl. `TuningTest`)
+  and `check.py`, since a settings change can't introduce memory or build errors.
 
-### Stage A: finish batch 1 (in progress)
+### Stage A: finish batch 1 (done)
 
 | Run | Change | Decides |
 | :--- | :--- | :--- |
@@ -141,15 +150,16 @@ others. Built as four switches, tested in this order:
 | Run | Switch | What it does | Offline check first |
 | :--- | :--- | :--- | :--- |
 | B1 | `fight.cover` | When engaged, move to a nearby spot with cover from the target and step out only to shoot (shoot-and-step-back); reload and heal behind cover | **Dropped offline:** no gain in the duel screen; cover within reach is rare on campus streets |
-| B0 | (bug fix) | Trigger timing: hold the trigger when the weapon is ready before the next decision. Found while screening B1: we released it during the window the next shot would fire, losing ~20% of gun damage | Strafer duel: 48 shots instead of 45 |
-| B2 | `fight.blind_fire` | Fire back along the exact damage bearing at attackers we can't see (foliage blocks sight, not bullets). Distance from a traced-back incoming bullet, else gunshot sound band, else 60 m; never into a wall | Duel screen (geometric hits): won 37/40 vs 23/40, damage ratio 1.67 vs 0.81 |
+| B0 | (bug fix) | Trigger timing: hold the trigger when the weapon is ready before the next decision. Found while screening B1: we released it during the window the next shot would fire, losing ~20% of gun damage | Strafer duel: 48 shots instead of 45. **Done: 2.90 (+0.36), new best.** |
+| B2 | `fight.blind_fire` | Fire back along the exact damage bearing at attackers we can't see (foliage blocks sight, not bullets). Distance from a traced-back incoming bullet, else gunshot sound band, else 60 m; never into a wall | Duel screen (geometric hits): won 37/40 vs 23/40, damage ratio 1.67 vs 0.81. **Done: 2.40 (−0.50), off.** |
 | B3 | `fight.focus` | Target choice by kill potential: lowest effective HP (HP ÷ our damage rate), finish wounded targets, stay on one target | Unit tests on target scoring |
 | B4 | `fight.spacing` | Keep the distance where we win: >50 m from lightning carriers, cover against lasers, close in on mortar carriers | Duel sim per enemy weapon |
 | B5 | `fight.disengage` | Break off fights we're losing (HP race estimate: their damage rate vs ours) | Duel sim |
 
-Then: **retreat re-test** after blind fire (1 run, interaction rule: if we win more fights, retreating may cost less or matter less).
+Interaction re-test after the timing fix (a stronger gun changes fight economics): `near90` (engage within 90 m), pending. The other eliminated options lost for reasons the fix doesn't touch: early retreat with held fire gives up even more with a stronger gun; roofs failed for reasons unrelated to our damage; the upgrade order waits for cube collection (Stage C).
 
-**Next runs:** B0 = `best` with the timing fix (compare 2.54; isolates the fix), then B2 = `blind` (compare B0).
+**Next:** the shootability fix on the best (isolated, like B0); then `near90` on the fixed code; then B3
+`fight.focus`; then a retreat-threshold re-test if fights now go differently.
 
 ### Stage C: E3, cubes and HP pool (crucial; both modes)
 
@@ -197,7 +207,7 @@ Worth up to 15 points per match, but only if we are alive at ~6:55.
 
 Three values each for the settings that mattered, one run per value. Expect about 2–3 runs per
 setting:
-- `engage.near_m` (30 / 40 / 60): run 1d suggests shorter is better
+- `engage.near_m`: 90 tested in `near90`; then 40 (and 30 if 40 wins), or 120 if 90 wins
 - `retreat.hp_enter` (0.25 / 0.35 / 0.45)
 - `retreat.hp_exit` (0.7 / 0.8 / 0.9)
 - `lightning.reserve` (10 / 20 / 30)
@@ -227,3 +237,24 @@ setting:
 | G | 6–10 | – |
 | H | 3–4 | – |
 | **Total** | **~25–30 runs** | ~7–8 hours of submission slots, spread across building time |
+
+## Correctness audits
+
+Bugs that misread the rules cost more than any tuning (the trigger-timing bug alone was worth
++0.36). Each audit:
+
+1. **Hard-coded numbers:** search for values that must come from `hello.config` (speeds, ranges,
+   heights, cooldowns). 2026-11-21: only `.get()` fallbacks; small simplifications remain (enemy
+   eye/muzzle heights use base values, ignoring their cubes).
+2. **Invariant audit over the recorded match** (`scratchpad/audit.py` style): no NaN/oversized
+   moves, pitch within limits, no jumps or jets while airborne outside a planned climb, no `take`
+   out of reach, no gun fired into a wall, no reload with a shootable target engaged, no engaging a
+   hidden target while another eligible one is shootable. 2026-11-21: clean for all presets, but
+   the recording only ever shows one other mech, so multi-enemy rules need synthetic tests.
+3. **Code vs protocol, rule by rule.** 2026-11-21 findings:
+   - trigger released while the cooldown ended inside the action window (fixed, run B0, +0.36);
+   - target choice ignored line of sight with two enemies (fixed; pending run);
+   - shots held when only the upper body was visible (fixed with the above).
+
+Repeat the audit after each new module, and add a synthetic test for every rule the recording
+can't exercise.

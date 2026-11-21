@@ -192,7 +192,21 @@ class Combat:
 
     # ------------------------------------------------------------ Q1/Q3: who to shoot
 
-    def engage_target(self, targets: List[Target], t: float, gun_range: float, retreat: bool = False) -> Optional[Target]:
+    def shot_point(self, muzzle, m: Target) -> Optional[List[float]]:
+        """Where to aim on `m` so a wall doesn't eat the bullet: its centre if clear, else its upper
+        body, else its legs; None if no part is shootable (trees never block shots)."""
+        if self.core is None:
+            return list(m.center)
+        for frac in (0.5, 0.8, 0.25):
+            p = [m.pos[0], m.pos[1], m.pos[2] + m.height * frac]
+            if self.core.shot_los(muzzle, p) >= 1.0:
+                return p
+        return None
+
+    def engage_target(self, targets: List[Target], t: float, gun_range: float, retreat: bool = False,
+                      muzzle=None) -> Optional[Target]:
+        """Q1/Q3 eligibility, then preference. With `muzzle`, targets we can actually shoot get a
+        bonus larger than "it hit us", so a hidden attacker never blocks a clear shot at another."""
         best, best_s = None, -1e9
         for m in targets:
             if retreat and m.dist > tuning.get("retreat.cornered_m") and m.hp / m.max_hp >= tuning.get("retreat.finish_hp"):
@@ -207,6 +221,8 @@ class Combat:
             if not (hit_us or m.dist <= near_m or low or (m.kind == "mech" and tuning.get("engage.any_in_range"))):
                 continue
             s = 3.0 * hit_us + 2.0 * (m.dist <= near_m) + 2.0 * low - m.dist / 100.0 - m.hp / m.max_hp
+            if muzzle is not None and self.shot_point(muzzle, m) is not None:
+                s += 4.0
             if s > best_s:
                 best, best_s = m, s
         return best
@@ -272,15 +288,17 @@ class Combat:
         laser_i = self.slot_of(me, "laser")
 
         threat = self.laser_threat(targets, my_center)
-        target = self.engage_target(targets, t, gun_range, retreat)
+        target = self.engage_target(targets, t, gun_range, retreat, muzzle=muzzle)
         if threat is not None and (target is None or target.dist > threat.dist + 30):
             target = threat if threat.dist <= gun_range else target
 
         # ---- (a) engage: gun lead solution
         solution = None
+        aim_pt = None
         if target is not None:
             speed = float(gstats.get("speed", 252.0))
-            solution = core_api.gun_lead(muzzle, target.center, target.vel, speed, my_r + 0.5)
+            aim_pt = self.shot_point(muzzle, target) or target.center
+            solution = core_api.gun_lead(muzzle, aim_pt, target.vel, speed, my_r + 0.5)
             if solution is not None:
                 aim = [solution[0], solution[1]]
                 why = f"engage {target.id}"
@@ -342,7 +360,11 @@ class Combat:
             d = max(1.0, math.dist(muzzle, target.center))
             spread = math.radians(float(gstats.get("spread_deg", 0.6)))
             tol_yaw = math.atan2(target.radius * 0.8, d) + spread
-            tol_pitch = math.atan2(target.height * 0.4, d) + spread
+            # pitch allowance: how far the aim point is from the nearer end of the body (aiming at
+            # the upper body must not send the shot over the head)
+            pz = aim_pt[2] if aim_pt is not None else target.center[2]
+            margin = min(pz - target.pos[2], target.pos[2] + target.height - pz)
+            tol_pitch = math.atan2(max(0.3, margin * 0.8), d) + spread
             on = abs(wrap(act_yaw - solution[0])) <= tol_yaw and abs(act_pitch - solution[1]) <= tol_pitch
             # the bullet leaves along the *actual* aim: that line must be clear too
             if on and float(gun.get("cooldown", 0.0)) < READY_WITHIN_S and d <= gun_range and \

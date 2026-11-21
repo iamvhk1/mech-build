@@ -143,6 +143,69 @@ class FightTest(unittest.TestCase):
         sol = c.blind_solution(o, b, [0.0, 0.0, 7.0], 2.5)
         self.assertAlmostEqual(sol[2], 100.0, delta=4.0)
 
+    # ------------------------------------------------------------ shootability (global audit)
+
+    def _two_enemy_case(self, seed=5):
+        rng = random.Random(seed)
+        for _ in range(20000):
+            me = rng.choice(self.open)
+            z = self.core.floor_z(*me)
+            mz = (me[0], me[1], z + CFG["mech"]["muzzle_height"])
+            a1, a2 = rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi)
+            A = (me[0] + 50 * math.cos(a1), me[1] + 50 * math.sin(a1))
+            B = (me[0] + 40 * math.cos(a2), me[1] + 40 * math.sin(a2))
+            if not (self.core.is_ground(*A) and self.core.is_ground(*B)):
+                continue
+            Az, Bz = self.core.floor_z(*A), self.core.floor_z(*B)
+            if any(self.core.shot_los(mz, (A[0], A[1], Az + h)) >= 1 for h in (2.25, 4.5, 7.2)):
+                continue
+            if self.core.shot_los(mz, (B[0], B[1], Bz + 4.5)) < 1:
+                continue
+            return (me[0], me[1], z), (A[0], A[1], Az), (B[0], B[1], Bz), a1
+        self.fail("no case")
+
+    def test_prefers_a_target_we_can_shoot(self):
+        """A hidden attacker must not block a clear shot at another eligible mech (was 50/50 wrong)."""
+        tuning.use("best")
+        me, A, B, a1 = self._two_enemy_case()
+        c = Combat(CFG, self.core)
+        hit = [{"type": "damaged", "amount": 45, "weapon": "gun", "bearing": a1, "by": 1}]
+        o = make_obs(me, mechs=[mech(1, A), mech(2, B)], events=hit)
+        c.observe(o)
+        mz = [me[0], me[1], me[2] + CFG["mech"]["muzzle_height"]]
+        self.assertEqual(c.engage_target(c.targets(o), 10.0, 230, muzzle=mz).id, 2)
+        c.decide(o, (0, 0))
+        self.assertEqual(c.debug, "engage 2")
+        # with only the hidden attacker around, we still turn toward it
+        o1 = make_obs(me, mechs=[mech(1, A)], events=hit)
+        self.assertEqual(c.engage_target(c.targets(o1), 10.0, 230, muzzle=mz).id, 1)
+
+    def test_shot_point_upper_body_when_middle_blocked(self):
+        c = Combat(CFG, self.core)
+        rng = random.Random(9)
+        found = 0
+        for _ in range(30000):
+            me = rng.choice(self.open)
+            z = self.core.floor_z(*me)
+            mz = [me[0], me[1], z + CFG["mech"]["muzzle_height"]]
+            a = rng.uniform(0, 2 * math.pi)
+            T = (me[0] + 45 * math.cos(a), me[1] + 45 * math.sin(a))
+            if not self.core.is_ground(*T):
+                continue
+            Tz = self.core.floor_z(*T)
+            mid = self.core.shot_los(mz, (T[0], T[1], Tz + 4.5)) >= 1
+            up = self.core.shot_los(mz, (T[0], T[1], Tz + 7.2)) >= 1
+            if mid or not up:
+                continue
+            tg = c.targets(make_obs((me[0], me[1], z), mechs=[mech(3, (T[0], T[1], Tz))]))[0]
+            p = c.shot_point(mz, tg)
+            self.assertIsNotNone(p)
+            self.assertGreater(p[2], Tz + 4.5)
+            found += 1
+            if found >= 5:
+                break
+        self.assertGreater(found, 0)
+
     # ------------------------------------------------------------ duel regression
 
     def test_duel_blind_fire_beats_best(self):
