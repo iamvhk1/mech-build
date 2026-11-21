@@ -290,6 +290,7 @@ MC_API int mc_get_layer(MechCore* h, int layer, float* out, int n) {
             case MC_L_GROUND: v = (h->ground_comp >= 0 && h->ncomp[c] == h->ground_comp) ? 1.f : 0.f; break;
             case MC_L_COVER: v = h->ncover[c] / 16.f; break;
             case MC_L_EDGES: { int b = h->nedges[c], k = 0; while (b) { k += b & 1; b >>= 1; } v = (float)k; break; }
+            case MC_L_KIND: v = h->nkind[c]; break;
             default: return 0;
         }
         out[c] = v;

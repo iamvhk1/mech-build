@@ -25,7 +25,8 @@ _MAX_PATH = 512
 
 WALK, JUMP, DROP = 0, 1, 2
 
-LAYER_FLOOR, LAYER_CLEARANCE, LAYER_COMPONENT, LAYER_GROUND, LAYER_COVER, LAYER_EDGES = range(6)
+LAYER_FLOOR, LAYER_CLEARANCE, LAYER_COMPONENT, LAYER_GROUND, LAYER_COVER, LAYER_EDGES, LAYER_KIND = range(7)
+KIND_TERRAIN, KIND_ROOF, KIND_STADIUM, KIND_BRIDGE = 0, 1, 2, 3
 
 _dbl = C.c_double
 _pd = C.POINTER(C.c_double)
@@ -68,7 +69,7 @@ def _load() -> C.CDLL:
         "mc_can_see": (C.c_int, [_ph] + [_dbl] * 11),
         "mc_nearest_walkable": (C.c_int, [_ph, _dbl, _dbl, _dbl, C.c_int, _pd]),
         "mc_segment_walkable": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl]),
-        "mc_find_path": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _pd, C.c_int, _pd, _dbl, _dbl, C.c_int, _pd, C.c_int]),
+        "mc_find_path": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, C.c_int, _pd, C.c_int, _pd, _dbl, _dbl, C.c_int, _pd, C.c_int]),
         "mc_steer": (C.c_int, [_ph, _dbl, _dbl, _dbl, _dbl, _dbl, _dbl, _pd, _pd, C.c_int, _pd, _pd]),
         "mc_gun_lead": (C.c_int, [_dbl] * 11 + [_pd]),
         "mc_mortar_pitch": (C.c_int, [_dbl] * 9 + [C.c_int, _dbl, _dbl, _pd]),
@@ -284,13 +285,14 @@ class MapCore:
         return bool(self._lib.mc_segment_walkable(self._h, a[0], a[1], b[0], b[1], radius, height))
 
     def find_path_ex(self, start: Sequence[float], goal: Sequence[float], radius: float, height: float = 0.0,
-                     max_jump_rise: float = 0.0, threats: Sequence[Sequence[float]] = (),
+                     max_jump_rise: float = 0.0, allow_roofs: bool = False, threats: Sequence[Sequence[float]] = (),
                      zone: Optional[Sequence[float]] = None, cover_weight: float = 0.0,
                      h_weight: Optional[float] = None,
                      max_expansions: int = 60000) -> Optional[List[Tuple[float, float, int]]]:
         """Waypoints (x, y, kind) from start to goal (start excluded, snapped goal included), or None.
         kind: WALK (0), JUMP (1: reaching it needs a jump) or DROP (2: walk off a ledge to reach it). height: mech height for headroom (0 = base).
-        max_jump_rise: allow steps up to this height as jumps (0 = walk only; never onto roofs).
+        max_jump_rise: allow steps up to this height as jumps (0 = walk only).
+        allow_roofs: jumps may land on building roofs (rooftop play); otherwise never.
         threats: (x, y, range, weight) up to 8. zone: (cx, cy, r, penalty) or None.
         h_weight: heuristic inflation; default 1.3, or 2.0 when penalties are active (they raise
         step costs, so a plain heuristic explores far more cells: measured 8 ms vs 2 ms average)."""
@@ -300,6 +302,7 @@ class MapCore:
         tbuf = _darr([v for t in th for v in t[:4]])
         zbuf = _darr(list(zone[:4])) if zone else None
         n = self._lib.mc_find_path(self._h, start[0], start[1], goal[0], goal[1], radius, height, max_jump_rise,
+                                   int(allow_roofs),
                                    tbuf, len(th), zbuf, cover_weight, h_weight, max_expansions,
                                    self._path_buf, _MAX_PATH)
         if n <= 0:

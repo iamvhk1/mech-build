@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "picker_lastresort"
+ACTIVE = "roof_camp"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -25,6 +25,9 @@ DEFAULTS = {
     "retreat.hold_fire": True,      # hold fire while retreating (regen needs no damage dealt)
     "retreat.cornered_m": 25.0,     # ...but fight back this close
     "retreat.finish_hp": 0.15,      # ...or finish a target this low
+    # rooftop camping (roadmap item 2)
+    "roof.enabled": False,          # climb a roof inside the next circle and fight from its edge
+    "roof.peek_hp": 0.5,            # step to the edge toward a hunter only above this HP fraction
 }
 
 PRESETS = {
@@ -37,6 +40,9 @@ PRESETS = {
     "picker_lastresort": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
     "picker_aggressive": {"retreat.enabled": False, "engage.any_in_range": True},
+    # roadmap item 2: rooftop test, on top of the best so far (picker_lastresort, 2.54)
+    "roof_camp": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "roof.enabled": True},
 }
 
 

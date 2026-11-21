@@ -18,6 +18,7 @@ import debug_draw as dbg
 import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
 from navigation import Navigator, boost_policy
+from roofs import RoofIndex
 from strategy import Strategy
 from threat import ThreatTracker
 import tuning
@@ -52,7 +53,9 @@ class Bot:
         self.nav = Navigator(self.core, self.cfg)
         self.combat = Combat(self.cfg, self.core)
         self.threats = ThreatTracker()
-        self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats)
+        self.roofs = RoofIndex(self.core, float(self.cfg["mech"]["radius"]), float(self.cfg["mech"]["step_up"])) \
+            if (self.core is not None and tuning.get("roof.enabled")) else None
+        self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats, self.roofs)
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -130,6 +133,7 @@ class Bot:
             d = math.dist(pickup["pos"][:2], (x, y))
             if self.zone.time_until_outside(pickup["pos"]) > d / max(1.0, walk) + 10.0:
                 goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
+        self.nav.allow_roofs = dec.roofs
         self.nav.set_goal(goal)
 
         # ---- legs

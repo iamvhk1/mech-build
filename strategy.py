@@ -13,7 +13,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import tuning
 
-ROTATE, RETREAT = "rotate", "retreat"
+ROTATE, RETREAT, ROOF = "rotate", "retreat", "roof"
 
 # thresholds and which triggers are active come from tuning.py (retreat.*)
 HEAVY_DAMAGE_FRAC = 0.20     # ...or this much of max HP lost in the last 2 s
@@ -29,15 +29,19 @@ ZONE_MARGIN_M = 5.0
 
 
 class Decision:
-    __slots__ = ("state", "goal", "retreat", "boost", "why")
+    __slots__ = ("state", "goal", "retreat", "boost", "why", "roofs")
 
-    def __init__(self, state: str, goal=None, retreat: bool = False, boost: bool = False, why: str = ""):
+    def __init__(self, state: str, goal=None, retreat: bool = False, boost: bool = False, why: str = "",
+                 roofs: bool = False):
         self.state, self.goal, self.retreat, self.boost, self.why = state, goal, retreat, boost, why
+        self.roofs = roofs  # navigation may jump onto building roofs
 
 
 class Strategy:
-    def __init__(self, cfg: dict, core, zone, threats):
+    def __init__(self, cfg: dict, core, zone, threats, roofs=None):
         self.cfg = cfg
+        self.roofs = roofs
+        self.roof = None
         self.core = core
         self.zone = zone
         self.threats = threats
@@ -115,10 +119,17 @@ class Strategy:
         t = float(obs["t"])
         hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
         pos = me["pos"]
+        hunters = self.threats.hunters(pos)
+        if tuning.get("roof.enabled") and self.roofs is not None and not zone_urgent:
+            d = self.roof_decision(me, hp, hunters)
+            if d is not None:
+                self._set(ROOF, t)
+                return d
+        if self.state == ROOF:
+            self._set(ROTATE, t)  # no usable roof (or the zone comes first): back to the ground states
         if not tuning.get("retreat.enabled"):
             self._set(ROTATE, t)
             return Decision(ROTATE, why="rotate")
-        hunters = self.threats.hunters(pos)
         many = sum(1 for hh in hunters if math.dist(hh.pos_at(t)[:2], pos[:2]) <= MANY_RANGE_M) >= MANY_HUNTERS
         heavy = self.threats.damage_taken(2.0) > HEAVY_DAMAGE_FRAC * float(me.get("max_hp", 1400)) and hp < HEAVY_DAMAGE_HP
         many = many and tuning.get("retreat.on_hunters")
@@ -146,3 +157,27 @@ class Strategy:
             # the zone wins: heal where we can, but get inside first (no regen outside the zone)
             return Decision(RETREAT, goal=None, retreat=hold_fire, why="retreat (zone first)")
         return Decision(ROTATE, why="rotate")
+
+    # ------------------------------------------------------------ rooftops
+
+    def roof_decision(self, me: dict, hp: float, hunters) -> Optional[Decision]:
+        """Climb a usable roof and hold its middle; step to the edge toward the nearest hunter to
+        shoot when healthy. None when there is no usable roof (fall back to the other states)."""
+        st = me.get("stats") or {}
+        v0 = float(st.get("jump_speed", 11.0))
+        cap = v0 * v0 / (2 * float(st.get("gravity", 22.0))) + \
+            0.75 * 85.0 * float(st.get("max_rise_speed", 10.0)) / max(1e-6, float(st.get("jet_drain", 15.0)))
+        if self.roof is None or not self.roofs.usable(self.roof, self.zone, cap):
+            self.roof = self.roofs.choose(self.zone, me["pos"], cap)
+        if self.roof is None:
+            return None
+        roof = self.roof
+        on = self.roofs.roof_at(me["pos"])
+        if on is not None and on.id == roof.id:
+            t = self.threats.t
+            near = min(hunters, key=lambda h: math.dist(h.pos_at(t)[:2], me["pos"][:2]), default=None)
+            if near is not None and hp >= tuning.get("roof.peek_hp"):
+                return Decision(ROOF, goal=self.roofs.edge_toward(roof, near.pos_at(t)), roofs=True,
+                                why=f"roof peek {near.id}")
+            return Decision(ROOF, goal=roof.core, roofs=True, why="roof hold")
+        return Decision(ROOF, goal=roof.core, roofs=True, why=f"roof climb {roof.height:.0f}m")

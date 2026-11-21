@@ -13,6 +13,8 @@ Autonomous bot for the Mech Royale `mechfight/1` battle royale.
 | `Dockerfile` | Submission image (must stay at the top level). Two stages: compile the core, then a slim runtime. |
 | `bot.py` | Entrypoint. Builds the map core at `hello`, falls back to straight-line movement if it can't. |
 | `zone.py` | Zone circle over time, time until the edge reaches a point, destination inside the next circle. |
+| `roofs.py` | Roof index (standable roofs, height, area, safest middle spot) and roof choice. |
+| `tuning.py` | Experiment presets: every behaviour switch in one place (`ACTIVE` selects). |
 | `strategy.py` | Behaviour states (E1: rotate, retreat-to-heal with hidden-spot search). |
 | `threat.py` | Threat memory: enemy tracks, who is hunting us, damage taken. |
 | `upgrades.py` | Upgrade picker: nanites, plating x3, nanites, armor, then the rest. |

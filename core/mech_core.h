@@ -40,6 +40,7 @@ enum {
     MC_L_GROUND,            /* 1 if in the ground (street) component */
     MC_L_COVER,             /* static cover 0..1 */
     MC_L_EDGES,             /* number of outgoing walkable edges 0..8 */
+    MC_L_KIND,              /* floor kind: 0 terrain, 1 building roof, 2 stadium, 3 bridge */
     MC_L_COUNT
 };
 
@@ -90,14 +91,14 @@ MC_API int mc_nearest_walkable(MechCore* h, double x, double y, double radius, i
 MC_API int mc_segment_walkable(MechCore* h, double ax, double ay, double bx, double by, double radius,
                                double height);
 /* height: mech height (<= 0: base). max_jump_rise: allow steps up to this many meters as jumps
- * (0 = walk only; never onto building roofs). threats: n * 4 doubles (x, y, range, weight).
+ * (0 = walk only). allow_roofs: jumps may land on building roofs (otherwise never). threats: n * 4 doubles (x, y, range, weight).
  * zone: 4 doubles (cx, cy, r, penalty) or NULL.
  * h_weight >= 1 inflates the heuristic (1 = optimal, 1.3 = much faster, slightly longer paths).
  * Writes waypoints (excluding start, including snapped goal) to out_xyj, 3 doubles each:
  * x, y, kind (0 = walk, 1 = jump needed to reach it, 2 = drop off a ledge to reach it).
  * Returns number of waypoints, or <0 on failure (-1 no start, -2 no goal, -3 no path). */
 MC_API int mc_find_path(MechCore* h, double sx, double sy, double gx, double gy, double radius,
-                        double height, double max_jump_rise,
+                        double height, double max_jump_rise, int allow_roofs,
                         const double* threats, int n_threats, const double* zone,
                         double cover_weight, double h_weight, int max_expansions,
                         double* out_xyj, int max_pts);

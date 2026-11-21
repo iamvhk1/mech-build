@@ -43,6 +43,7 @@ class Navigator:
         self.fail_t = -1e9
         self.reaches_goal = False
         self.pending_jump_plan = False
+        self.allow_roofs = False  # set per decision by the strategy (rooftop play)
         self.jump_route_goal: Optional[Tuple[float, float]] = None  # goal we found a jump route to
         # jump / climb state
         self.climb_target: Optional[Tuple[float, float, float]] = None  # x, y, floor
@@ -111,7 +112,7 @@ class Navigator:
             self.last_debug = "staging"
             return
         p = self.core.find_path_ex(pos, self.goal, r, height=h, max_jump_rise=rise, h_weight=2.0,
-                                   max_expansions=JUMP_EXPANSIONS)
+                                   allow_roofs=self.allow_roofs, max_expansions=JUMP_EXPANSIONS)
         ok = bool(p) and math.dist(p[-1][:2], snapped) <= REACHED_GOAL_M
         if p and (ok or not self.path or math.dist(p[-1][:2], snapped) < math.dist(self.path[-1][:2], snapped)):
             self.path = list(p)

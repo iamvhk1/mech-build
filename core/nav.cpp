@@ -29,14 +29,15 @@ static inline bool passable(const MechCore* h, size_t c, double r, double H) {
 // Move from nav cell (i, j) in direction d. Walk edges follow the step/slope rules; with
 // jump_rise > 0, higher steps up to jump_rise are allowed as jumps, except onto building roofs
 // (rooftops are a later iteration). *jumped reports which kind it was.
-static bool can_move(const MechCore* h, int i, int j, int d, double r, double H, double jump_rise, bool* jumped) {
+static bool can_move(const MechCore* h, int i, int j, int d, double r, double H, double jump_rise, bool* jumped,
+                     bool roofs = false) {
     int ni = i + DIR_DX[d], nj = j + DIR_DY[d];
     if (ni < 0 || nj < 0 || ni >= h->nnx || nj >= h->nny) return false;
     size_t c = (size_t)j * h->nnx + i, n = (size_t)nj * h->nnx + ni;
     if (!passable(h, n, r, H)) return false;
     bool jump = false;
     if (!(h->nedges[c] & (1 << d))) {
-        if (jump_rise <= 0 || h->nkind[n] == 1 || h->nrise[c * 8 + d] * 0.25 > jump_rise) return false;
+        if (jump_rise <= 0 || (h->nkind[n] == 1 && !roofs) || h->nrise[c * 8 + d] * 0.25 > jump_rise) return false;
         jump = true;
     }
     if (DIR_DX[d] && DIR_DY[d]) {  // no corner cutting
@@ -52,7 +53,8 @@ static bool can_move(const MechCore* h, int i, int j, int d, double r, double H,
 //   EDGE_DROP: no rise beyond a step, landing more than a step lower (walking off a ledge).
 enum { EDGE_NONE = 0, EDGE_JUMP = 1, EDGE_DROP = 2 };
 static const int LONG_MAX = 4;
-static int long_edge(const MechCore* h, int i, int j, int di, int dj, double r, double H, double jump_rise) {
+static int long_edge(const MechCore* h, int i, int j, int di, int dj, double r, double H, double jump_rise,
+                     bool roofs = false) {
     int ni = i + di, nj = j + dj;
     if (ni < 0 || nj < 0 || ni >= h->nnx || nj >= h->nny) return EDGE_NONE;
     size_t n = (size_t)nj * h->nnx + ni;
@@ -64,7 +66,7 @@ static int long_edge(const MechCore* h, int i, int j, int di, int dj, double r, 
         top = std::max(top, (double)h->floor1[lat(h, li, lj)]);
     }
     double gain = top - f0;
-    if (gain > h->step_up) return (jump_rise > 0 && gain <= jump_rise && h->nkind[n] != 1) ? EDGE_JUMP : EDGE_NONE;
+    if (gain > h->step_up) return (jump_rise > 0 && gain <= jump_rise && (h->nkind[n] != 1 || roofs)) ? EDGE_JUMP : EDGE_NONE;
     if (h->nfloor[n] < f0 - h->step_up) return EDGE_DROP;
     return EDGE_NONE;
 }
@@ -258,7 +260,7 @@ MC_API int mc_segment_walkable(MechCore* h, double ax, double ay, double bx, dou
 }
 
 MC_API int mc_find_path(MechCore* h, double sx, double sy, double gx, double gy, double radius,
-                        double height, double max_jump_rise,
+                        double height, double max_jump_rise, int allow_roofs,
                         const double* threats, int n_threats, const double* zone,
                         double cover_weight, double h_weight, int max_expansions, double* out_xyj, int max_pts) {
     if (!h->built || max_pts < 1) return -1;
@@ -362,7 +364,7 @@ MC_API int mc_find_path(MechCore* h, double sx, double sy, double gx, double gy,
         int i = c % nnx, j = c / nnx;
         for (int d = 0; d < 8; ++d) {
             bool jumped = false;
-            if (!can_move(h, i, j, d, radius, H, max_jump_rise, &jumped)) continue;
+            if (!can_move(h, i, j, d, radius, H, max_jump_rise, &jumped, allow_roofs != 0)) continue;
             int n = (j + DIR_DY[d]) * nnx + (i + DIR_DX[d]);
             if (h->closed_gen[n] == G) continue;
             double step = ((DIR_DX[d] && DIR_DY[d]) ? 1.41421356 : 1.0) * h->nres;
@@ -381,7 +383,7 @@ MC_API int mc_find_path(MechCore* h, double sx, double sy, double gx, double gy,
             for (int dj = -LONG_MAX; dj <= LONG_MAX; ++dj) {
                 for (int di = -LONG_MAX; di <= LONG_MAX; ++di) {
                     if (std::max(std::abs(di), std::abs(dj)) < 2) continue;
-                    int kind = long_edge(h, i, j, di, dj, radius, H, max_jump_rise);
+                    int kind = long_edge(h, i, j, di, dj, radius, H, max_jump_rise, allow_roofs != 0);
                     if (kind == EDGE_NONE) continue;
                     int n = (j + dj) * nnx + (i + di);
                     if (h->closed_gen[n] == G) continue;
