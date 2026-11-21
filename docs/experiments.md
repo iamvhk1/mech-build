@@ -124,7 +124,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 17 | `upgrade_first` (run U1) | `4679dea` | 3.35 | Always take choice 0 on the 3.38 baseline: 3.35 vs 3.38 (−0.03, effectively a tie). Confirms the ranked upgrade picker (`nanites` → `plating` → `armor`) has a slight edge (+0.03, ~2 places) over random choice 0, but defensive upgrades alone don't drastically alter squad focus fights. Kept `ranked` in `best`. Baseline remains **3.38**. |
 | 18 | `drones` (run C2) | `b0f806d` | 3.38 | Hunt isolated NPC drones for 2 cubes each on the 3.38 baseline: 3.38 vs 3.38 (exact tie). Drones are scarce (12 on map), safe conditions (HP ≥ 90%, no hunters ≤ 120 m) rarely arise in practice, and gun noise can alert nearby house bots. Under our rule (need ≥ +0.05 to adopt), kept OFF in `best`. Baseline remains **3.38**. |
 | 19 | `mode_detect` (run D1) | `2c8c63e` | 3.31 | Initial mode detection: 3.31 vs 3.38 (−0.07). Diagnosis: the broad zone radius check (`r > 70` m) allowed occasional mid-game squad zone deaths to be misclassified as unassisted combat deaths, latching into FFA mode with `retreat.hold_fire: True` and `retreat.on_hunters: True`. Against 15 hunters, holding fire caused the bot to die without fighting back. Fixed in D1b. |
-| 20 | `mode_detect` (run D1b) | pending | *pending* | Hardened mode detection + safe FFA overlay: unassisted death only triggers FFA before zone shrink begins (`t < shrink_start = 60s`, where circle is 560 m and 0 zone damage is possible on campus) or ≥2 unassisted deaths before 120s. After 120s, permanently locks to `practice` (eliminates false triggers from squad zone collapse). FFA overlay keeps firing back (`hold_fire: False`, `on_hunters: False`). Active preset: `mode_detect`. |
+| 20 | `mode_detect` (run D1b) | `c923e9b` | **3.38** | Hardened mode detection + safe FFA overlay: 3.38 vs 3.38 (exact match, zero regression on practice). Pre-shrink check (t < 60s) avoids false triggers on squad zone deaths, and 120s lock prevents late-game false triggers. Mode detection is now proven safe for practice while providing crucial survival adaptation in qualifiers/finals. Kept; incorporated into `best`. Baseline remains **3.38**. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -218,8 +218,9 @@ Practice can't reward this directly, but the finals depend on it.
   `hp_exit: 0.80`), keep shooting back (`hold_fire: False`, `on_hunters: False`), opportunistic
   engagement only (60 m), safe cube, crate, and drone farming.
 - Built & verified with unit tests in `tests/test_mode.py`.
-- **Run D1b (`mode_detect`)**: practice regression check. Score must not drop (detection must never
-  trigger in practice). Active preset: `mode_detect`. **Pending submission.**
+- **Run D1b (`mode_detect`)**: practice regression check. **Done: 3.38 (exact match, zero regression). Kept in `best`.**
+
+Stage D complete! Mode detection and the FFA overlay are now armed and part of `best`. Baseline remains **3.38**. Next: Stage E (end of match / final burn E4).
 
 ### Stage E: E4, the end of the match (crucial once we survive longer)
 

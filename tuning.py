@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "mode_detect"
+ACTIVE = "best"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -58,10 +58,10 @@ PRESETS = {
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
     # best so far: run 1c settings (2.54); + trigger-timing fix (code, run B0) 2.90; + shootability
     # fix (code, B0b) 2.85; + strafing (run B-strafe) 2.88, kept by decision despite the tie;
-    # + crate farming (run C1) 3.00; + all visible cubes (run C3) 3.38
+    # + crate farming (run C1) 3.00; + all visible cubes (run C3) 3.38; + mode detection (run D1b) 3.38
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-             "farm.crates": True, "farm.cubes": True},
+             "farm.crates": True, "farm.cubes": True, "mode.detect": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},

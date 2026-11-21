@@ -36,7 +36,8 @@ class ModeDetectionTest(unittest.TestCase):
         self.assertTrue(tuning.PRESETS["ffa"]["farm.drones"])
 
     def test_detection_disabled_when_switch_off(self):
-        tuning.use("best")  # mode.detect is False
+        tuning.use("crates")  # mode.detect is False
+        self.assertFalse(tuning.get("mode.detect"))
         z = self._zone(radius=560, shrink_start=60)
         self.detector.observe({"alive": 16, "t": 10.0, "events": []}, z)
         # Unassisted death occurs, but switch is off
