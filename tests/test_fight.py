@@ -206,6 +206,64 @@ class FightTest(unittest.TestCase):
                 break
         self.assertGreater(found, 0)
 
+    # ------------------------------------------------------------ B3 focus fire
+
+    def _focus_pick(self, mechs, sticky=None, retreat=False, hits=(5, 6, 7)):
+        """engage_target with core=None (everything shootable) under the focus preset."""
+        c = Combat(CFG, None)
+        me = (0.0, 0.0, 0.0)
+        ev = [{"type": "damaged", "amount": 45, "weapon": "gun", "bearing": 0.0, "by": h} for h in hits]
+        o = make_obs(me, mechs=mechs, events=ev)
+        c.observe(o)
+        tg = c.engage_target(c.targets(o), 10.0, 230, retreat, muzzle=[0.0, 0.0, 7.0], sticky_id=sticky)
+        return None if tg is None else tg.id
+
+    def test_focus_prefers_quickest_kill(self):
+        tuning.use("focus")
+        self.assertEqual(self._focus_pick([mech(5, (50, 0, 0)), mech(6, (50, 10, 0), hp=500)]), 6)
+        # same HP: the nearer one is quicker to kill (higher hit chance)
+        self.assertEqual(self._focus_pick([mech(5, (150, 0, 0), hp=800), mech(6, (50, 10, 0), hp=800)]), 6)
+
+    def test_focus_sticks_to_current_target(self):
+        tuning.use("focus")
+        ms = [mech(5, (50, 0, 0), hp=1400), mech(6, (50, 10, 0), hp=1200)]
+        self.assertEqual(self._focus_pick(ms), 6)                 # no focus yet: quicker kill
+        self.assertEqual(self._focus_pick(ms, sticky=5), 5)       # but don't switch mid-fight
+
+    def test_focus_leaves_healthy_target_to_finish_a_wounded_one(self):
+        tuning.use("focus")
+        ms = [mech(5, (50, 0, 0), hp=1400), mech(6, (50, 10, 0), hp=300)]   # 6 is below 25%
+        self.assertEqual(self._focus_pick(ms, sticky=5), 6)
+
+    def test_focus_keeps_rules(self):
+        tuning.use("focus")
+        drone = mech(104, (20, 0, 0), kind="npc")
+        self.assertIsNone(self._focus_pick([drone], hits=()))                       # Q3 still applies
+        self.assertIsNone(self._focus_pick([mech(5, (120, 0, 0))], hits=()))       # Q1 still applies
+        self.assertIsNone(self._focus_pick([mech(5, (50, 0, 0))], retreat=True))   # retreat hold fire
+        self.assertEqual(self._focus_pick([mech(5, (50, 0, 0), hp=150)], retreat=True), 5)  # ...but finish
+
+    def test_focus_grace_then_switch_to_shootable(self):
+        """A focus target that ducks behind cover is kept for a second, then we switch to one we can hit."""
+        tuning.use("focus")
+        me, A, B, a1 = self._two_enemy_case()
+        hit = [{"type": "damaged", "amount": 45, "weapon": "gun", "bearing": a1, "by": 1}]
+        c = Combat(CFG, self.core)
+        o = make_obs(me, mechs=[mech(1, A), mech(2, B)], events=hit, t=10.0)
+        c.observe(o)
+        c.focus_id, c.focus_seen_t = 1, 9.5            # we were shooting A half a second ago
+        c.decide(o, (0, 0))
+        self.assertEqual(c.debug, "engage 1")
+        c.focus_seen_t = 8.0                           # ...two seconds ago: grace is over
+        c.decide(o, (0, 0))
+        self.assertEqual(c.debug, "engage 2")
+
+    def test_focus_off_is_unchanged(self):
+        """With fight.focus off, sticky_id is ignored (best behaves exactly as before)."""
+        tuning.use("best")
+        ms = [mech(5, (50, 0, 0), hp=1400), mech(6, (50, 10, 0), hp=1200)]
+        self.assertEqual(self._focus_pick(ms, sticky=5), self._focus_pick(ms, sticky=None))
+
     # ------------------------------------------------------------ duel regression
 
     def test_duel_blind_fire_beats_best(self):

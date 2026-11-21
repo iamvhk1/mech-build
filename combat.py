@@ -32,6 +32,11 @@ LIGHTNING_CLOSE_M = 20.0
 # 0.1 s). The server fires a held trigger the moment the cooldown ends, so releasing it while the
 # cooldown still runs (but ends inside the action window) wastes ~20% of the gun's fire rate.
 READY_WITHIN_S = 0.1
+FOCUS_KEEP_S = 1.0           # B3: keep the focus target this long after we last had a shot at it
+FOCUS_STICKY_BONUS = 8.0     # beats a shootable alternative (+6) during that grace second
+FOCUS_FINISH_HP = 0.25       # a shootable target below this HP fraction is "finishable"
+FOCUS_FINISH_BONUS = 6.0     # enough to leave a healthy focus target for a quick kill
+FOCUS_HIT_DAMAGE = 45.0      # gun damage per hit, for relative time-to-kill (only ratios matter)
 BLIND_S = 2.0                # fire back blind along a damage bearing for this long after the hit
 BLIND_DEFAULT_M = 60.0       # assumed attacker distance when nothing better is known
 SOUND_BAND_M = {"near": 35.0, "mid": 100.0, "far": 200.0}
@@ -41,6 +46,12 @@ SWAP_CLEAR_M = 50.0
 LIGHTNING_DETOUR_M = 40.0
 MORTAR_DETOUR_M = 25.0
 EVADE_HOLD_S = 1.5
+
+
+def hit_chance(dist: float) -> float:
+    """Rough gun hit chance by distance (strafer duel: ~90% at 80 m; spread and dodging grow with
+    range). Used only to rank targets by time-to-kill."""
+    return 0.9 if dist <= 60.0 else (0.75 if dist <= 120.0 else 0.55)
 
 
 def wrap(a: float) -> float:
@@ -92,6 +103,8 @@ class Combat:
         self.last_damage: Optional[Tuple[float, float, Optional[int]]] = None  # t, bearing, by
         self.sounds: List[Tuple[float, str, float, str]] = []  # t, kind, bearing, dist
         self.last_engage_t = -1e9
+        self.focus_id: Optional[int] = None   # B3: the target we were last shooting
+        self.focus_seen_t = -1e9              # ...and when we last had a shot at it
         self.evade_until = -1e9
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.debug = ""
@@ -204,9 +217,14 @@ class Combat:
         return None
 
     def engage_target(self, targets: List[Target], t: float, gun_range: float, retreat: bool = False,
-                      muzzle=None) -> Optional[Target]:
+                      muzzle=None, sticky_id: Optional[int] = None) -> Optional[Target]:
         """Q1/Q3 eligibility, then preference. With `muzzle`, targets we can actually shoot get a
-        bonus larger than "it hit us", so a hidden attacker never blocks a clear shot at another."""
+        bonus larger than "it hit us", so a hidden attacker never blocks a clear shot at another.
+
+        With `fight.focus` (B3) the preference is about finishing kills instead: stay on
+        `sticky_id` (the target we were shooting), prefer the target we can kill soonest (HP over
+        our hit chance at its distance), and switch to a shootable target that is nearly dead."""
+        focus = bool(tuning.get("fight.focus"))
         best, best_s = None, -1e9
         for m in targets:
             if retreat and m.dist > tuning.get("retreat.cornered_m") and m.hp / m.max_hp >= tuning.get("retreat.finish_hp"):
@@ -220,9 +238,16 @@ class Combat:
             low = m.hp / m.max_hp < tuning.get("engage.low_hp")
             if not (hit_us or m.dist <= near_m or low or (m.kind == "mech" and tuning.get("engage.any_in_range"))):
                 continue
-            s = 3.0 * hit_us + 2.0 * (m.dist <= near_m) + 2.0 * low - m.dist / 100.0 - m.hp / m.max_hp
-            if muzzle is not None and self.shot_point(muzzle, m) is not None:
-                s += 4.0
+            shootable = muzzle is not None and self.shot_point(muzzle, m) is not None
+            if focus:
+                hits_to_kill = m.hp / FOCUS_HIT_DAMAGE / hit_chance(m.dist)
+                s = (3.0 * hit_us + 6.0 * shootable - hits_to_kill / 10.0
+                     + FOCUS_FINISH_BONUS * (shootable and m.hp / m.max_hp < FOCUS_FINISH_HP)
+                     + FOCUS_STICKY_BONUS * (sticky_id is not None and m.id == sticky_id))
+            else:
+                s = 3.0 * hit_us + 2.0 * (m.dist <= near_m) + 2.0 * low - m.dist / 100.0 - m.hp / m.max_hp
+                if shootable:
+                    s += 4.0
             if s > best_s:
                 best, best_s = m, s
         return best
@@ -288,9 +313,12 @@ class Combat:
         laser_i = self.slot_of(me, "laser")
 
         threat = self.laser_threat(targets, my_center)
-        target = self.engage_target(targets, t, gun_range, retreat, muzzle=muzzle)
+        sticky = self.focus_id if (tuning.get("fight.focus") and t - self.focus_seen_t <= FOCUS_KEEP_S) else None
+        target = self.engage_target(targets, t, gun_range, retreat, muzzle=muzzle, sticky_id=sticky)
         if threat is not None and (target is None or target.dist > threat.dist + 30):
             target = threat if threat.dist <= gun_range else target
+        if target is not None and self.shot_point(muzzle, target) is not None:
+            self.focus_id, self.focus_seen_t = target.id, t  # remember who we're shooting (B3)
 
         # ---- (a) engage: gun lead solution
         solution = None
