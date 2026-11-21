@@ -1,0 +1,10 @@
+.git
+.gitignore
+docs/
+check/
+arena/
+**/__pycache__
+**/*.pyc
+**/*.so
+**/*.o
+build/
