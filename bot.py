@@ -18,6 +18,7 @@ import debug_draw as dbg
 import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
 from fight import CoverFighter
+from strafe import Strafer
 from navigation import Navigator, boost_policy
 from roofs import RoofIndex
 from strategy import Strategy
@@ -58,6 +59,7 @@ class Bot:
             if (self.core is not None and tuning.get("roof.enabled")) else None
         self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats, self.roofs)
         self.fighter = CoverFighter(self.core, self.cfg)
+        self.strafer = Strafer(self.core, self.cfg, int(hello.get("seed", 0)))
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -90,6 +92,46 @@ class Bot:
             self.dest = choose_destination(self.core, self.zone, me["pos"], float(st.get("radius", 2.5)))
             self.dest_key, self.dest_t = key, t
         return self.dest
+
+    def strafe_target(self, obs: dict, targets) -> Optional[Tuple[float, float]]:
+        """Whom we're fighting, for strafing: the engage target, else (if hit in the last 2 s) a
+        point along the damage bearing. None when we're not in a fight."""
+        me = obs["self"]
+        st = me.get("stats") or {}
+        x, y, z = me["pos"]
+        t = float(obs["t"])
+        gi = self.combat.slot_of(me, "gun")
+        gun = self.combat.slots(me)[gi] if gi is not None else None
+        gun_range = float(((gun or {}).get("stats") or self.cfg["weapons"]["gun"]).get("range", 230.0))
+        muzzle = [x, y, z + float(st.get("muzzle_height", 7.0))]
+        tg = self.combat.engage_target(targets, t, gun_range, muzzle=muzzle)
+        if tg is not None:
+            return (tg.pos[0], tg.pos[1])
+        ld = self.combat.last_damage
+        if ld is not None and t - ld[0] <= 2.0:
+            return (x + 60.0 * math.cos(ld[1]), y + 60.0 * math.sin(ld[1]))
+        return None
+
+    def stuck_paused(self, strafe_xy) -> bool:
+        """Pause the navigator's stuck detection only while we are actually strafing: still in a
+        fight (strafe_xy) AND the strafer strafed on the previous decision. Back-and-forth jinks
+        have little net displacement and would read as "stuck" (triggering a hop under fire); but
+        in a fight where both strafe directions are unsafe we walk normally, and real stuck
+        detection must stay on."""
+        if strafe_xy is None:
+            self.strafer.active = False  # fight over: don't carry a stale "was strafing" into the next one
+            return False
+        return bool(self.strafer.active)
+
+    def hunter_eyes(self, me: dict) -> List[List[float]]:
+        """Eye points of up to 4 known hunters, for the strafer's exposure check."""
+        eye = float(self.cfg["mech"].get("eye_height", 8.0))
+        t = self.threats.t
+        out = []
+        for hh in sorted(self.threats.hunters(me["pos"]), key=lambda h: math.dist(h.pos_at(t)[:2], me["pos"][:2]))[:4]:
+            p = hh.pos_at(t)
+            out.append([p[0], p[1], p[2] + eye])
+        return out
 
     def fight_goal(self, obs: dict, targets) -> Optional[Tuple[float, float]]:
         """B1: where to stand while fighting the current target from cover (None = no cover fight)."""
@@ -150,9 +192,20 @@ class Bot:
         self.nav.allow_roofs = dec.roofs
         self.nav.set_goal(goal)
 
-        # ---- legs
+        # ---- legs (+ strafing in a fight: only in the normal state, zone not urgent, not evading)
+        strafe_xy = None
+        if tuning.get("fight.strafe") and dec.state == "rotate" and not zone_urgent and t >= self.evade_until:
+            strafe_xy = self.strafe_target(obs, targets)
+        self.nav.suppress_stuck = self.stuck_paused(strafe_xy)
         urgent = boost_policy(me, inside, time_left, eta) or dec.boost
         mv = self.nav.step(obs, urgent=urgent, zone_circle=self.zone.current(), shells=self.incoming_shells(obs))
+        if strafe_xy is not None and self.nav.climb_target is None and me.get("grounded", True):
+            new_move, active = self.strafer.adjust(obs, mv["move"], strafe_xy, self.hunter_eyes(me), self.zone.current())
+            if active:
+                mv = dict(mv, move=new_move, jump=False, boost=False)
+                why += " +strafe"
+        else:
+            self.strafer.active = False  # not strafing this decision (no fight, airborne or climbing)
         act.update(mv)
 
         # ---- torso and triggers

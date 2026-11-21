@@ -3,7 +3,12 @@
 Us: MiniSim movement, the real Combat (aim, fire gates), torso slew at turn_rate, gun cooldown /
 magazine / reload, ThreatTracker, and optionally the CoverFighter + Navigator.
 Enemy: a stationary gunner that fires at the gun's rate whenever its muzzle has a clear line to
-our chest or top, hitting with a fixed probability (lower while we move); rear hits deal x1.5.
+our chest or top; rear hits deal x1.5. Two enemy models:
+  "prob"    - each shot hits with a fixed probability (lower while we move). Default; kept so earlier
+              screening results stay reproducible.
+  "bullets" - each shot is a real bullet aimed where we'll be (leading our current velocity, plus
+              aim error and the gun's spread); it hits only if we are actually there when it
+              arrives ~0.3 s later and no wall is in the way. Use this to judge movement (strafing).
 """
 from __future__ import annotations
 
@@ -13,13 +18,15 @@ import random
 from combat import Combat, wrap
 from fight import CoverFighter
 from navigation import Navigator
+from strafe import Strafer
 from sim import MiniSim
 from threat import ThreatTracker
 
 
 class Duel:
     def __init__(self, core, cfg, start, enemy_xy, cover: bool, seed: int = 0,
-                 enemy_hit=0.5, enemy_hit_moving=0.35, our_hit=0.85):
+                 enemy_hit=0.5, enemy_hit_moving=0.35, our_hit=0.85, enemy_model: str = "prob",
+                 enemy_lead: bool = True, enemy_aim_err_deg: float = 0.8, strafe: bool = False):
         self.core, self.cfg = core, cfg
         self.rng = random.Random(seed)
         self.sim = MiniSim(core, cfg, start)
@@ -39,6 +46,12 @@ class Duel:
         self.dealt = self.taken = 0.0
         self.last_seen = -1e9
         self.moved = 0.0
+        self.enemy_model, self.enemy_lead = enemy_model, enemy_lead
+        self.enemy_aim_err = math.radians(enemy_aim_err_deg)
+        self.strafe = strafe
+        self.strafer = Strafer(core, cfg, seed)
+        self.vel = (0.0, 0.0)
+        self.pending = []  # in-flight enemy bullets: (arrival_t, aim_x, aim_y, aim_z)
 
     def _visible(self) -> bool:
         m = self.cfg["mech"]
@@ -83,6 +96,15 @@ class Duel:
         end = (px, py, pz)
         return self.core.shot_los(start, end) >= 1.0
 
+    def _hit_us(self, g, m, events) -> None:
+        bearing = math.atan2(self.enemy[1] - self.sim.y, self.enemy[0] - self.sim.x)
+        rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
+        dmg = g["damage"] * (m["rear_mult"] if rear else 1.0)
+        self.hp -= dmg
+        self.taken += dmg
+        events.append({"type": "damaged", "amount": dmg, "weapon": "gun", "bearing": bearing,
+                       "by": 5, "rear": rear})
+
     def run(self, max_s: float = 40.0) -> dict:
         m, g = self.cfg["mech"], self.g
         dt = 0.05
@@ -117,12 +139,19 @@ class Duel:
                     if goal is not None:
                         self.nav.set_goal(goal)
                         mv = self.nav.step(obs)
+                if self.strafe:
+                    new_move, active = self.strafer.adjust(
+                        obs, mv["move"], self.enemy[:2],
+                        [[self.enemy[0], self.enemy[1], self.enemy[2] + m["eye_height"]]], None)
+                    if active:
+                        mv = dict(mv, move=new_move, jump=False, boost=False)
                 cmb = self.combat.decide(obs, mv["move"], targets)
                 act = {**mv, **cmb}
             # legs
             px, py = self.sim.x, self.sim.y
             self.sim.apply({k: act.get(k) for k in ("move", "boost", "jump")}, dt)
             self.moved = math.hypot(self.sim.x - px, self.sim.y - py) / dt
+            self.vel = ((self.sim.x - px) / dt, (self.sim.y - py) / dt)
             # torso slew
             dy = wrap(act["aim"][0] - self.aim[0])
             self.aim[0] = wrap(self.aim[0] + max(-m["turn_rate"] * dt, min(m["turn_rate"] * dt, dy)))
@@ -153,15 +182,33 @@ class Duel:
                 self.e_cd = g["cooldown"]
                 if self.e_ammo == 0:
                     self.e_rl = g["reload"]
-                p = self.enemy_hit_moving if self.moved > 3.0 else self.enemy_hit
-                if self.rng.random() < p:
-                    bearing = math.atan2(self.enemy[1] - self.sim.y, self.enemy[0] - self.sim.x)
-                    rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
-                    dmg = g["damage"] * (m["rear_mult"] if rear else 1.0)
-                    self.hp -= dmg
-                    self.taken += dmg
-                    events.append({"type": "damaged", "amount": dmg, "weapon": "gun", "bearing": bearing,
-                                   "by": 5, "rear": rear})
+                if self.enemy_model == "bullets":
+                    ex, ey = self.enemy[0], self.enemy[1]
+                    dist = math.hypot(self.sim.x - ex, self.sim.y - ey)
+                    flight = dist / g["speed"]
+                    lead = flight if self.enemy_lead else 0.0
+                    ax, ay = self.sim.x + self.vel[0] * lead, self.sim.y + self.vel[1] * lead
+                    # aim error + spread, as a lateral/vertical offset at the target distance
+                    err = math.hypot(self.enemy_aim_err, math.radians(g["spread_deg"]))
+                    off_l = math.tan(self.rng.gauss(0.0, err)) * dist
+                    off_v = math.tan(self.rng.gauss(0.0, err)) * dist
+                    ux, uy = (ax - ex) / max(1e-6, dist), (ay - ey) / max(1e-6, dist)
+                    ax, ay = ax - uy * off_l, ay + ux * off_l
+                    az = self.sim.z + m["height"] / 2 + off_v
+                    self.pending.append((step * dt + flight, ax, ay, az))
+                else:
+                    p = self.enemy_hit_moving if self.moved > 3.0 else self.enemy_hit
+                    if self.rng.random() < p:
+                        self._hit_us(g, m, events)
+            # enemy bullets arriving now: hit only if we are where they were aimed
+            arrived = [b for b in self.pending if b[0] <= step * dt]
+            self.pending = [b for b in self.pending if b[0] > step * dt]
+            for _, ax, ay, az in arrived:
+                if math.hypot(self.sim.x - ax, self.sim.y - ay) <= m["radius"] and \
+                        self.sim.z <= az <= self.sim.z + m["height"]:
+                    e = (self.enemy[0], self.enemy[1], self.enemy[2] + m["muzzle_height"])
+                    if self.core.shot_los(e, (ax, ay, az)) >= 1.0:
+                        self._hit_us(g, m, events)
             if self.hp <= 0 or self.ehp <= 0:
                 break
         return {"dealt": self.dealt, "taken": self.taken, "won": self.ehp <= 0 and self.hp > 0,

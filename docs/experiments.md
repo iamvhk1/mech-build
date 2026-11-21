@@ -59,7 +59,8 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Trigger timing fix (always on) | **Good** (2.90, +0.36) | Positive | Bug fix: up to ~20% more gun damage in every fight | on | on |
 | Shootability fix (always on): prefer targets we can shoot; aim at the visible part | Tie (2.85 vs 2.90); kept for correctness and FFA | Positive | Bug fix: with two enemies, a hidden attacker blocked a clear shot at the other in 50/50 test cases; a low wall over the middle blocked shots at a visible upper body | on | on |
 | Blind fire at unseen attackers (`fight.blind_fire`) | **Bad** (2.40, −0.50), despite the duel screen predicting 37/40 wins | Unknown, likely bad for the same reasons | Bearings can point at blasts or arc origins, guessed shots waste the magazine, and gunfire reveals us | off | off |
-| Focus fire (`fight.focus`, B3) | pending (run B3) | Positive | Finishing kills scores in practice; in a FFA, finishing an enemy removes a threat and avoids third parties stealing the kill | per result | likely on |
+| Focus fire (`fight.focus`, B3) | **Bad** (2.63, −0.22) | Unknown, likely bad for the same reasons | Sticking to a hidden target and chasing far wounded ones costs time and HP | off | off |
+| Strafing in fights (`fight.strafe`) | pending (run B-strafe); duel: won 31/40 vs 18/40 vs a leading shooter | Positive | Bullets take ~0.3 s to arrive; reversing makes leading shooters miss; useless against lasers and lightning (instant) | per result | per result |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
@@ -85,7 +86,8 @@ applied once mode detection says free-for-all.
 | `roof.peek_hp` | 0.5 | Step to the roof edge toward the nearest hunter only above this HP fraction |
 | `fight.cover` | false | B1: fight from cover (step out to fire, back to reload / after hits). Dropped offline |
 | `fight.blind_fire` | false | Fire back along the damage bearing at attackers we can't see. Off: 2.40 vs 2.90 |
-| `fight.focus` | false | B3: stay on one target (1 s grace), prefer quickest kill (HP / hit chance), finish targets below 25% HP |
+| `fight.focus` | false | B3: stay on one target (1 s grace), prefer quickest kill (HP / hit chance), finish targets below 25% HP. Off: 2.63 vs 2.85 |
+| `fight.strafe` | false | Strafe sideways while fighting, reversing every 0.6–1.5 s (0.35–0.6 s near cover); safeguarded |
 
 Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
 shootability (`Combat.shot_point`, target preference for shootable mechs; pending).
@@ -107,7 +109,8 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 10 | `near90` | `56b50be` | *skipped* | Pushed but not submitted: the shootability fix (found by the audit) changes which target we shoot, which interacts with the engagement range, so `near90` is re-run on the fixed code. |
 | 11 | `best` + shootability fix (run B0b) | `8c5820c` | 2.85 | −0.05: a tie under our rule. Kept anyway: it corrects a real misreading, matters more in free-for-all multi-enemy fights, and its likely practice cost (switching targets spreads damage, fewer kills) is what B3 focus fire addresses. **Baseline for the current code: 2.85.** |
 | 12 | `near90` on the fixed code | – | *skipped* | Decided low priority (a tuning number, expected effect small); moved to Stage G. |
-| 13 | `focus` (run B3) | *next* | *pending* | Focus fire on the 2.85 baseline: stay on one target (1 s grace when it ducks behind cover), prefer the quickest kill, leave a healthy target to finish one below 25% HP. Compare 2.85. |
+| 13 | `focus` (run B3) | `65744ad` | 2.63 | Focus fire on the 2.85 baseline: worse (−0.22, ~10 places). Likely: the 1 s grace keeps aiming at a target that ducked behind cover instead of shooting the one we can hit, and time-to-kill ranking can prefer a far wounded target over a near one that is shooting us. Off in both modes. |
+| 14 | `strafe` (run B-strafe) | *next* | *pending* | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. Compare 2.85. |
 
 ## Batch 1 (done)
 
@@ -156,7 +159,8 @@ others. Built as four switches, tested in this order:
 | B1 | `fight.cover` | When engaged, move to a nearby spot with cover from the target and step out only to shoot (shoot-and-step-back); reload and heal behind cover | **Dropped offline:** no gain in the duel screen; cover within reach is rare on campus streets |
 | B0 | (bug fix) | Trigger timing: hold the trigger when the weapon is ready before the next decision. Found while screening B1: we released it during the window the next shot would fire, losing ~20% of gun damage | Strafer duel: 48 shots instead of 45. **Done: 2.90 (+0.36), new best.** |
 | B2 | `fight.blind_fire` | Fire back along the exact damage bearing at attackers we can't see (foliage blocks sight, not bullets). Distance from a traced-back incoming bullet, else gunshot sound band, else 60 m; never into a wall | Duel screen (geometric hits): won 37/40 vs 23/40, damage ratio 1.67 vs 0.81. **Done: 2.40 (−0.50), off.** |
-| B3 | `fight.focus` | Target choice by kill potential: lowest effective HP (HP ÷ our damage rate), finish wounded targets, stay on one target | 6 unit tests; `best` stays action-identical to `8c5820c`; audit clean. **Built, run pending.** |
+| B3 | `fight.focus` | Target choice by kill potential: lowest effective HP (HP ÷ our damage rate), finish wounded targets, stay on one target | 6 unit tests; `best` stays action-identical to `8c5820c`; audit clean. **Done: 2.63 (−0.22), off.** |
+| B3b | `fight.strafe` | Strafe sideways in fights with safeguards (walls, zone, exposure to other hunters, short jinks near cover, no hops) | Duel with real leading enemy bullets: won 31/40 vs 18/40; 8 unit tests; `focus` stays action-identical to `65744ad`. **Run pending.** |
 | B4 | `fight.spacing` | Keep the distance where we win: >50 m from lightning carriers, cover against lasers, close in on mortar carriers | Duel sim per enemy weapon |
 | B5 | `fight.disengage` | Break off fights we're losing (HP race estimate: their damage rate vs ours) | Duel sim |
 

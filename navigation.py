@@ -44,6 +44,7 @@ class Navigator:
         self.reaches_goal = False
         self.pending_jump_plan = False
         self.allow_roofs = False  # set per decision by the strategy (rooftop play)
+        self.suppress_stuck = False  # set per decision by the bot while strafing in a fight
         self.jump_route_goal: Optional[Tuple[float, float]] = None  # goal we found a jump route to
         # jump / climb state
         self.climb_target: Optional[Tuple[float, float, float]] = None  # x, y, floor
@@ -204,7 +205,13 @@ class Navigator:
                     else:
                         break
 
-        # ---- unstick: if we keep commanding movement but don't move, escalate
+        # ---- unstick: if we keep commanding movement but don't move, escalate. Paused while the
+        # bot strafes in a fight: back-and-forth jinks have little net displacement and would
+        # otherwise read as "stuck" and trigger a hop (a predictable arc under fire).
+        if self.suppress_stuck:
+            self.hist.clear()
+            self.stuck_level = 0
+            self.unstick_until = 0.0
         if t < self.unstick_until:
             out["move"] = list(self.unstick_dir)
             out["jump"] = grounded and self.stuck_level == 1

@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "focus"
+ACTIVE = "strafe"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -32,6 +32,7 @@ DEFAULTS = {
     "fight.cover": False,           # B1: fight from cover (step out to fire, back to reload / after hits)
     "fight.blind_fire": False,      # fire back along the damage bearing at attackers we can't see
     "fight.focus": False,           # B3: stay on one target, prefer quickest kills, finish wounded targets
+    "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
 }
 
 PRESETS = {
@@ -55,6 +56,13 @@ PRESETS = {
     # Stage B, run B3: best + focus fire
     "focus": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.focus": True},
+    # Stage B: strafing on the plain best (used if focus fire doesn't win)
+    "strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True},
+    # Stage B: focus fire + strafing (compared against the focus run)
+    "focus_strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                     "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.focus": True,
+                     "fight.strafe": True},
     # interaction re-test after the trigger-timing fix: engage mechs within 90 m (was 60 m)
     "near90": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "engage.near_m": 90.0},
