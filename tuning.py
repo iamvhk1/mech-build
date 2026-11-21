@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "drops"
+ACTIVE = "best"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -123,6 +123,23 @@ PRESETS = {
     "drops": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True},
+    # Stage G: tuning sweeps on best
+    # G1: engage closer (40 m vs 60 m baseline) to avoid picking fights with distant squad members
+    "near40": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "engage.near_m": 40.0},
+    # G2: delay retreat to 25% HP (fight back longer)
+    "retreat25": {"retreat.hp_enter": 0.25, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                  "farm.crates": True, "farm.cubes": True, "mode.detect": True},
+    # G3: retreat earlier to 45% HP (preserve HP pool)
+    "retreat45": {"retreat.hp_enter": 0.45, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                  "farm.crates": True, "farm.cubes": True, "mode.detect": True},
+    # G4: exit retreat earlier at 70% HP
+    "exit70": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.70, "retreat.on_hunters": False,
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+               "farm.crates": True, "farm.cubes": True, "mode.detect": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
