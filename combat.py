@@ -37,6 +37,7 @@ FOCUS_STICKY_BONUS = 8.0     # beats a shootable alternative (+6) during that gr
 FOCUS_FINISH_HP = 0.25       # a shootable target below this HP fraction is "finishable"
 FOCUS_FINISH_BONUS = 6.0     # enough to leave a healthy focus target for a quick kill
 FOCUS_HIT_DAMAGE = 45.0      # gun damage per hit, for relative time-to-kill (only ratios matter)
+CRATE_SHOT_MAX_M = 60.0      # Stage C: shoot crates only this close (accuracy, noise)
 BLIND_S = 2.0                # fire back blind along a damage bearing for this long after the hit
 BLIND_DEFAULT_M = 60.0       # assumed attacker distance when nothing better is known
 SOUND_BAND_M = {"near": 35.0, "mid": 100.0, "far": 200.0}
@@ -287,8 +288,9 @@ class Combat:
         return [Target(m, self.cfg, me["pos"]) for m in obs.get("mechs") or []]
 
     def decide(self, obs: dict, move: Sequence[float], targets: Optional[List[Target]] = None, zone=None,
-               retreat: bool = False) -> dict:
-        """Torso and triggers: {"aim": [yaw, pitch], "fire": [bool, bool], "reload": bool}."""
+               retreat: bool = False, farm_aim: Optional[Sequence[float]] = None) -> dict:
+        """Torso and triggers: {"aim": [yaw, pitch], "fire": [bool, bool], "reload": bool}.
+        farm_aim: centre of a crate to shoot (Stage C), used only when there is no mech target."""
         me = obs["self"]
         t = float(obs["t"])
         st = me.get("stats") or {}
@@ -331,6 +333,13 @@ class Combat:
                 aim = [solution[0], solution[1]]
                 why = f"engage {target.id}"
                 self.last_engage_t = t
+        # ---- (a2) farming: shoot the crate (no mech target only; the gun only, never lightning)
+        crate_shot = None
+        if aim is None and farm_aim is not None and not retreat:
+            yaw, pitch = yaw_pitch(muzzle, farm_aim)
+            aim, why = [yaw, pitch], "shoot crate"
+            crate_shot = (yaw, pitch, math.dist(muzzle, farm_aim))
+            self.last_engage_t = t  # don't start a reload mid-crate
         # ---- (b) last attacker, (c) mech aiming at us / laser threat
         blind = None
         if aim is None and self.last_damage and t - self.last_damage[0] < FACE_ATTACKER_S:
@@ -374,6 +383,24 @@ class Combat:
             if mres is not None:
                 aim, why = mres[0], f"mortar {target.id}"
                 fire[mortar_i] = mres[1]
+
+        # ---- crate gate: torso on the crate, gun ready, in range, no building in the way
+        if crate_shot is not None and gun is not None and float(gun.get("ammo", 1)) > 0 and \
+                float(gun.get("reload", 0.0)) <= 0.0 and float(gun.get("cooldown", 0.0)) < READY_WITHIN_S:
+            cy, cp, cd = crate_shot
+            crate_r = float(self.cfg.get("crates", {}).get("radius", 1.4))
+            crate_h = float(self.cfg.get("crates", {}).get("height", 2.4))
+            spread = math.radians(float(gstats.get("spread_deg", 0.6)))
+            on = abs(wrap(act_yaw - cy)) <= math.atan2(crate_r * 0.8, cd) + spread and \
+                abs(act_pitch - cp) <= math.atan2(crate_h * 0.4, cd) + spread
+            if on and cd <= CRATE_SHOT_MAX_M and self.core is not None:
+                d = (math.cos(act_pitch) * math.cos(act_yaw), math.cos(act_pitch) * math.sin(act_yaw), math.sin(act_pitch))
+                start = [muzzle[i] + (my_r + 0.5) * d[i] for i in range(3)]
+                end = [start[i] + max(0.0, cd - my_r - 0.5) * d[i] for i in range(3)]
+                if self.core.shot_los(muzzle, start) >= 1.0 and self.core.shot_los(start, end) >= 1.0:
+                    fire[gun_i] = True
+            elif on and cd <= CRATE_SHOT_MAX_M and self.core is None:
+                fire[gun_i] = True
 
         # ---- blind fire gate: torso on the bearing, gun ready
         if blind is not None and gun is not None and float(gun.get("ammo", 1)) > 0 and \

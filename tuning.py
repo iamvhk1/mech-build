@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "strafe"
+ACTIVE = "crates"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -33,6 +33,12 @@ DEFAULTS = {
     "fight.blind_fire": False,      # fire back along the damage bearing at attackers we can't see
     "fight.focus": False,           # B3: stay on one target, prefer quickest kills, finish wounded targets
     "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
+    # cube economy (master plan Stage C)
+    "farm.crates": False,           # C1: shoot street-level crates and collect their cube when safe
+    "farm.cubes": False,            # C3: also collect any other visible cube (kill drops) when safe
+    "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
+    "farm.min_hp": 0.6,             # ...and HP at least this fraction
+    "farm.max_dist": 80.0,          # consider crates/cubes within this distance
 }
 
 PRESETS = {
@@ -44,9 +50,10 @@ PRESETS = {
     "p3_picker": {"retreat.enabled": False},
     "picker_lastresort": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
-    # best so far: run 1c settings, 2.54; with the trigger-timing fix (code, run B0) 2.90
+    # best so far: run 1c settings (2.54); + trigger-timing fix (code, run B0) 2.90; + shootability
+    # fix (code, B0b) 2.85; + strafing (run B-strafe) 2.88, kept by decision despite the tie
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-             "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
+             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -56,6 +63,10 @@ PRESETS = {
     # Stage B, run B3: best + focus fire
     "focus": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.focus": True},
+    # Stage C, run C1: best (incl. strafing) + crates
+    "crates": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+               "farm.crates": True},
     # Stage B: strafing on the plain best (used if focus fire doesn't win)
     "strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True},

@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 import debug_draw as dbg
 import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
+from farm import Farmer
 from fight import CoverFighter
 from strafe import Strafer
 from navigation import Navigator, boost_policy
@@ -60,6 +61,7 @@ class Bot:
         self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats, self.roofs)
         self.fighter = CoverFighter(self.core, self.cfg)
         self.strafer = Strafer(self.core, self.cfg, int(hello.get("seed", 0)))
+        self.farmer = Farmer(self.core, self.cfg)
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -112,6 +114,18 @@ class Bot:
             return (x + 60.0 * math.cos(ld[1]), y + 60.0 * math.sin(ld[1]))
         return None
 
+    def farm_goal(self, obs: dict, targets) -> Optional[Tuple[float, float]]:
+        """Stage C: where to walk to farm crates/cubes, or None when it isn't safe."""
+        me = obs["self"]
+        st = me.get("stats") or {}
+        x, y, z = me["pos"]
+        gi = self.combat.slot_of(me, "gun")
+        gun = self.combat.slots(me)[gi] if gi is not None else None
+        gun_range = float(((gun or {}).get("stats") or self.cfg["weapons"]["gun"]).get("range", 230.0))
+        muzzle = [x, y, z + float(st.get("muzzle_height", 7.0))]
+        has_target = self.combat.engage_target(targets, float(obs["t"]), gun_range, muzzle=muzzle) is not None
+        return self.farmer.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, has_target)
+
     def stuck_paused(self, strafe_xy) -> bool:
         """Pause the navigator's stuck detection only while we are actually strafing: still in a
         fight (strafe_xy) AND the strafer strafed on the previous decision. Back-and-forth jinks
@@ -161,6 +175,7 @@ class Bot:
         self.zone.update(obs["zone"], t)
         self.combat.observe(obs)
         self.threats.update(obs)
+        self.farmer.observe(obs)
         targets = self.combat.targets(obs)
         walk = float(st.get("walk_speed", self.cfg["mech"]["walk_speed"]))
         inside = bool(me.get("in_zone", True))
@@ -171,6 +186,7 @@ class Bot:
         # ---- goal: escape a charging laser > retreat to heal > wanted pickup (if the zone allows)
         #      > zone destination
         dec = self.strategy.update(obs, zone_urgent)
+        farming = False
         goal = self.destination(me, t)
         why = dec.why
         threat = self.combat.laser_threat(targets, [x, y, z + float(st.get("height", 9.0)) / 2])
@@ -185,10 +201,12 @@ class Bot:
             goal = dec.goal
         elif tuning.get("fight.cover") and not zone_urgent and self.fight_goal(obs, targets) is not None:
             goal, why = self.fighter_goal, f"fight {self.fighter.mode}"
-        elif pickup is not None:
-            d = math.dist(pickup["pos"][:2], (x, y))
-            if self.zone.time_until_outside(pickup["pos"]) > d / max(1.0, walk) + 10.0:
-                goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
+        elif pickup is not None and self.zone.time_until_outside(pickup["pos"]) >                 math.dist(pickup["pos"][:2], (x, y)) / max(1.0, walk) + 10.0:
+            goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
+        elif (tuning.get("farm.crates") or tuning.get("farm.cubes")) and dec.state == "rotate" and not zone_urgent:
+            fg = self.farm_goal(obs, targets)
+            if fg is not None:
+                goal, why, farming = fg, f"farm {self.farmer.mode}", True
         self.nav.allow_roofs = dec.roofs
         self.nav.set_goal(goal)
 
@@ -209,7 +227,8 @@ class Bot:
         act.update(mv)
 
         # ---- torso and triggers
-        act.update(self.combat.decide(obs, mv["move"], targets, self.zone, retreat=dec.retreat))
+        farm_aim = self.farmer.crate_aim() if farming else None
+        act.update(self.combat.decide(obs, mv["move"], targets, self.zone, retreat=dec.retreat, farm_aim=farm_aim))
         act.update(self.combat.take_action(obs, pickup))
 
         dbg.path((x, y), self.nav.path, z + 1.0)
