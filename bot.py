@@ -203,7 +203,7 @@ class Bot:
             goal, why = self.fighter_goal, f"fight {self.fighter.mode}"
         elif pickup is not None and self.zone.time_until_outside(pickup["pos"]) >                 math.dist(pickup["pos"][:2], (x, y)) / max(1.0, walk) + 10.0:
             goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
-        elif (tuning.get("farm.crates") or tuning.get("farm.cubes")) and dec.state == "rotate" and not zone_urgent:
+        elif (tuning.get("farm.crates") or tuning.get("farm.cubes") or tuning.get("farm.drones")) and dec.state == "rotate" and not zone_urgent:
             fg = self.farm_goal(obs, targets)
             if fg is not None:
                 goal, why, farming = fg, f"farm {self.farmer.mode}", True
@@ -228,7 +228,8 @@ class Bot:
 
         # ---- torso and triggers
         farm_aim = self.farmer.crate_aim() if farming else None
-        act.update(self.combat.decide(obs, mv["move"], targets, self.zone, retreat=dec.retreat, farm_aim=farm_aim))
+        target_drone_id = self.farmer.target_drone.id if (farming and self.farmer.target_drone is not None) else None
+        act.update(self.combat.decide(obs, mv["move"], targets, self.zone, retreat=dec.retreat, farm_aim=farm_aim, target_drone_id=target_drone_id))
         act.update(self.combat.take_action(obs, pickup))
 
         dbg.path((x, y), self.nav.path, z + 1.0)

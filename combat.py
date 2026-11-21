@@ -288,7 +288,8 @@ class Combat:
         return [Target(m, self.cfg, me["pos"]) for m in obs.get("mechs") or []]
 
     def decide(self, obs: dict, move: Sequence[float], targets: Optional[List[Target]] = None, zone=None,
-               retreat: bool = False, farm_aim: Optional[Sequence[float]] = None) -> dict:
+               retreat: bool = False, farm_aim: Optional[Sequence[float]] = None,
+               target_drone_id: Optional[int] = None) -> dict:
         """Torso and triggers: {"aim": [yaw, pitch], "fire": [bool, bool], "reload": bool}.
         farm_aim: centre of a crate to shoot (Stage C), used only when there is no mech target."""
         me = obs["self"]
@@ -321,6 +322,12 @@ class Combat:
             target = threat if threat.dist <= gun_range else target
         if target is not None and self.shot_point(muzzle, target) is not None:
             self.focus_id, self.focus_seen_t = target.id, t  # remember who we're shooting (B3)
+
+        # C2: drone farming target when no player mech is eligible
+        if target is None and target_drone_id is not None and not retreat:
+            dt = next((m for m in targets if m.id == target_drone_id and m.kind == "npc"), None)
+            if dt is not None and dt.dist <= gun_range and self.shot_point(muzzle, dt) is not None:
+                target = dt
 
         # ---- (a) engage: gun lead solution
         solution = None
@@ -434,7 +441,7 @@ class Combat:
         if lightning_i is not None:
             lw = slots[lightning_i]
             intended = threat if (threat is not None and threat.dist <= self.lightning_range(lw)) else target
-            if intended is not None and self.lightning_ok(obs, lw, intended, muzzle, act_yaw, targets):
+            if intended is not None and intended.kind == "mech" and self.lightning_ok(obs, lw, intended, muzzle, act_yaw, targets):
                 fire[lightning_i] = True
 
         # ---- laser (only if we ended up holding one): minimal charge/release

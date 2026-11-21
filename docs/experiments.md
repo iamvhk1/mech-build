@@ -63,6 +63,7 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Strafing in fights (`fight.strafe`) | Tie (2.88 vs 2.85); duel predicted a large gain | Small positive at best | Only dodges gun bullets; lasers and lightning are instant | on (kept by decision despite the tie) | on (dodges gun fire, which matters vs gun-armed bots) |
 | Crates and their cubes (`farm.crates`, C1) | **Good** (3.00, +0.12) | Positive | +4% max HP and damage per cube, upgrade offers; gated on safety, so it happens in quiet moments in both modes. Risk: gunfire and the crate breaking (heard 220 m) reveal us | on | on |
 | All visible cubes / kill drops (`farm.cubes`, C3) | **Good** (3.38, +0.38) | Positive | Walking over dropped cubes makes zero gunfire sound (unlike crates which make 220 m noise and need shooting), gives instant HP healing (+4% max HP healed per cube), damage bonus, and faster upgrade offers; safe walks only | on | on |
+| Isolated drones (`farm.drones`, C2) | *pending* (Run C2) | Positive | Drones drop 2 cubes (+8% HP and damage) with minimal risk (350 HP, 8 gun shots to kill) when taken at ≥90% HP with no hunters within 120 m | on (`drones`) | on |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
@@ -92,6 +93,8 @@ applied once mode detection says free-for-all.
 | `fight.strafe` | false | Strafe sideways while fighting, reversing every 0.6–1.5 s (0.35–0.6 s near cover); safeguarded. **On in `best`** |
 | `farm.crates` | false | C1: shoot street-level crates and collect their cube when safe. **On in `best`** |
 | `farm.cubes` | false | C3: also collect any other visible cube (kill drops) when safe. **On in `best`** |
+| `farm.drones` | false | C2: hunt isolated NPC drones (2 cubes each) when safe |
+| `farm.drone_min_hp` / `dist_min` / `dist_max` | 0.90 / 30 / 50 | Drone farming safety: HP ≥ 90%, stand-and-shoot 30–50 m |
 | `farm.safe_m` / `min_hp` / `max_dist` | 120 / 0.6 / 80 | Farming safety: no hunter within, HP at least, how far to look |
 
 Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
@@ -117,7 +120,8 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 13 | `focus` (run B3) | `65744ad` | 2.63 | Focus fire on the 2.85 baseline: worse (−0.22, ~10 places). Likely: the 1 s grace keeps aiming at a target that ducked behind cover instead of shooting the one we can hit, and time-to-kill ranking can prefer a far wounded target over a near one that is shooting us. Off in both modes. |
 | 15 | `crates` (run C1) | `1f78964` | **3.00** | **New best** (+0.12 over 2.88, ~6 places). Shoot street-level crates and collect their cube, only when safe (no mech to fight, HP ≥ 60%, no hunter within 120 m, zone allows the detour); gun only, stand and shoot within 18 m, within 60 m max. Kept; now part of `best`. |
 | 16 | `cubes` (run C3) | `48c2979` | **3.38** | **New best** (+0.38 over 3.00, ~18 places). Walk over any visible cube on the street (kill drops, floor spawns) when safe. Big win: collecting cubes is completely silent (no gunfire or crate destruction sound heard up to 220 m to attract hunters), grants instant HP healing (+4% max HP healed per cube), scales damage, and accelerates upgrade thresholds early. Kept; now part of `best`. |
-| 17 | `upgrade_first` (run U1) | pending | *pending* | Re-test upgrade order on the 3.38 baseline: always pick choice 0 (measure value of ranked picker now that cube collection is active; compare against 3.38). Active preset: `upgrade_first`. |
+| 17 | `upgrade_first` (run U1) | `4679dea` | 3.35 | Always take choice 0 on the 3.38 baseline: 3.35 vs 3.38 (−0.03, effectively a tie). Confirms the ranked upgrade picker (`nanites` → `plating` → `armor`) has a slight edge (+0.03, ~2 places) over random choice 0, but defensive upgrades alone don't drastically alter squad focus fights. Kept `ranked` in `best`. Baseline remains **3.38**. |
+| 18 | `drones` (run C2) | pending | *pending* | Hunt isolated NPC drones for 2 cubes each on the 3.38 baseline. Safe requirements: HP ≥ 90%, no hunters within 120 m, no enemy player mech within 90 m, stand-and-shoot at 30–50 m with gun only. Active preset: `drones`. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -192,9 +196,9 @@ neutral today because we rarely get any).
 | :--- | :--- | :--- |
 | C1 | `farm.crates` | Shoot and collect crates (1 cube, 50% weapon drop) when no hunter is within ~120 m. **Built:** 10 tests incl. end-to-end; `best` unchanged vs `11c2b69`; activates in the recorded match only while safe. **Done: 3.00 (+0.12), new best, kept.** |
 | C3 | `farm.cubes` | Walk over cubes dropped by our kills (all their cubes + 2) and floor cubes when safe. **Built:** tests in `test_farm.py`. **Done: 3.38 (+0.38), new best, kept.** |
-| C2 | `farm.drones` | Kill isolated drones (2 cubes each), only at full HP and with no hunter nearby |
+| C2 | `farm.drones` | Hunt isolated drones (2 cubes each) when safe (HP ≥ 90%, no hunter ≤ 120 m, stand-and-shoot at 30–50 m with gun only). **Pending submission.** |
 
-Then: **re-test the upgrade order** (run U1 pending: `upgrade_first` on the 3.38 baseline): it only matters once we get offers.
+Then: **re-test the upgrade order** (run U1 done: 3.35 vs 3.38; `ranked` kept in `best`). Next: test run C2 (`farm.drones`), then proceed to Stage D.
 
 ### Stage D: E6, mode detection + free-for-all settings (crucial for qualifiers)
 

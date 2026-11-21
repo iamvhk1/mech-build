@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "upgrade_first"
+ACTIVE = "drones"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -36,9 +36,13 @@ DEFAULTS = {
     # cube economy (master plan Stage C)
     "farm.crates": False,           # C1: shoot street-level crates and collect their cube when safe
     "farm.cubes": False,            # C3: also collect any other visible cube (kill drops) when safe
+    "farm.drones": False,           # C2: hunt isolated NPC drones (2 cubes each) when safe
+    "farm.drone_min_hp": 0.90,      # HP fraction required to farm drones
+    "farm.drone_dist_min": 30.0,    # stand-and-shoot minimum distance from drone
+    "farm.drone_dist_max": 50.0,    # stand-and-shoot maximum distance from drone
     "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
-    "farm.min_hp": 0.6,             # ...and HP at least this fraction
-    "farm.max_dist": 80.0,          # consider crates/cubes within this distance
+    "farm.min_hp": 0.6,             # ...and HP at least this fraction (crates/cubes)
+    "farm.max_dist": 80.0,          # consider crates/cubes/drones within this distance
 }
 
 PRESETS = {
@@ -77,6 +81,10 @@ PRESETS = {
     "upgrade_first": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                       "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                       "farm.crates": True, "farm.cubes": True, "upgrades": "first"},
+    # Stage C, run C2: best + hunt isolated drones for 2 cubes each
+    "drones": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+               "farm.crates": True, "farm.cubes": True, "farm.drones": True},
     # Stage B: strafing on the plain best (used if focus fire doesn't win)
     "strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True},

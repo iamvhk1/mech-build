@@ -178,6 +178,52 @@ class FarmTest(unittest.TestCase):
         finally:
             tuning.use(tuning.ACTIVE)
 
+    def test_drones_preset_active(self):
+        tuning.use("drones")
+        try:
+            self.assertTrue(tuning.get("farm.drones"))
+            self.assertTrue(tuning.get("farm.cubes"))
+            self.assertTrue(tuning.get("farm.crates"))
+            self.assertTrue(tuning.get("fight.strafe"))
+            self.assertEqual(tuning.get("farm.drone_min_hp"), 0.90)
+            self.assertEqual(tuning.get("farm.drone_dist_min"), 30.0)
+            self.assertEqual(tuning.get("farm.drone_dist_max"), 50.0)
+        finally:
+            tuning.use(tuning.ACTIVE)
+
+    def test_drone_farming_rules(self):
+        me, d = self.pair_clear(35, 45, seed=12)
+        f = Farmer(self.core, CFG)
+        drone_obs = mech(104, (d[0], d[1], d[2]), kind="npc", hp=350)
+        o = make_obs(me, mechs=[drone_obs])
+        f.observe(o)
+        tuning.SETTINGS["farm.drones"] = True
+        # At full HP with no threats, we target the drone and stand to shoot (within 30-50m)
+        self.assertEqual(self.plan(f, o), (me[0], me[1]))
+        self.assertEqual(f.mode, "drone 104")
+
+        # Below 90% HP (e.g. 85%), drone farming is disallowed
+        hurt = make_obs(me, mechs=[drone_obs])
+        hurt["self"]["hp"] = int(CFG["mech"]["hp"] * 0.85)
+        self.assertIsNone(self.plan(f, hurt))
+
+        # Hunter within 120m blocks drone farming
+        hunter = make_obs(me, mechs=[drone_obs, mech(5, (me[0] + 80, me[1], me[2]))])
+        self.assertIsNone(self.plan(f, hunter))
+
+        # A player mech in combat takes priority (has_target=True)
+        self.assertIsNone(self.plan(f, o, has_target=True))
+
+    def test_combat_engages_farmed_drone(self):
+        me, d = self.pair_clear(35, 45, seed=13)
+        cb = Combat(CFG, self.core)
+        drone = mech(104, (d[0], d[1], d[2]), kind="npc", hp=350)
+        ws = [gun(), weapon("lightning")]
+        # When target_drone_id is passed, combat aims gun at drone and never lightning
+        out = cb.decide(make_obs(me, mechs=[drone], weapons=ws), (0, 0), target_drone_id=104)
+        self.assertIn("engage 104", cb.debug)
+        self.assertFalse(out["fire"][1])  # lightning never fired at NPC
+
     # ------------------------------------------------------------ combat gating
 
     def test_combat_shoots_crate_only_without_mech_target(self):

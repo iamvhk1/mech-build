@@ -35,7 +35,9 @@ class Farmer:
         self.cfg = cfg
         self.crates: Dict[int, Item] = {}
         self.cubes: Dict[int, Item] = {}
+        self.drones: Dict[int, Item] = {}
         self.target: Optional[Item] = None   # crate we're shooting
+        self.target_drone: Optional[Item] = None  # drone we're shooting
         self.crate_spots: Dict[int, Tuple[float, float]] = {}  # where crates we shot at stood
         self.street: Dict[Tuple[str, int], bool] = {}         # cached on-street check per item
         self.mode = ""
@@ -47,10 +49,14 @@ class Farmer:
         me = obs["self"]["pos"]
         seen_cr = {int(c["id"]) for c in obs.get("crates") or []}
         seen_cu = {int(c["id"]) for c in obs.get("cubes") or []}
+        seen_dr = {int(m["id"]) for m in obs.get("mechs") or [] if m.get("kind") == "npc"}
         for c in obs.get("crates") or []:
             self.crates[int(c["id"])] = Item(int(c["id"]), c["pos"], float(c.get("hp", 300.0)), t)
         for c in obs.get("cubes") or []:
             self.cubes[int(c["id"])] = Item(int(c["id"]), c["pos"], 0.0, t)
+        for m in obs.get("mechs") or []:
+            if m.get("kind") == "npc":
+                self.drones[int(m["id"])] = Item(int(m["id"]), m["pos"], float(m.get("hp", 350.0)), t)
         near = float(self.cfg.get("vision", {}).get("near_range", FORGET_NEAR_M))
         for store, seen in ((self.crates, seen_cr), (self.cubes, seen_cu)):
             for iid in list(store):
@@ -60,13 +66,26 @@ class Farmer:
                 gone = math.dist(it.pos[:2], me[:2]) < near and self._visible_from(obs, it.pos)
                 if gone or t - it.t > MAX_AGE_S:
                     del store[iid]
-        # a cube where a crate stood: the crate is destroyed
+        for did in list(self.drones):
+            it = self.drones[did]
+            if did in seen_dr:
+                continue
+            gone = (math.dist(it.pos[:2], me[:2]) < near and self._visible_from(obs, it.pos)) or (t - it.t > 5.0)
+            if gone or it.hp <= 0:
+                del self.drones[did]
+        # a cube where a crate or drone stood: it was destroyed
         for cid in list(self.crates):
             cp = self.crates[cid].pos
             if any(math.dist(cu.pos[:2], cp[:2]) <= 3.0 for cu in self.cubes.values()):
                 del self.crates[cid]
+        for did in list(self.drones):
+            dp = self.drones[did].pos
+            if any(math.dist(cu.pos[:2], dp[:2]) <= 3.0 for cu in self.cubes.values()):
+                del self.drones[did]
         if self.target is not None and self.target.id not in self.crates:
             self.target = None
+        if self.target_drone is not None and self.target_drone.id not in self.drones:
+            self.target_drone = None
 
     def _visible_from(self, obs: dict, pos) -> bool:
         """Within proximity range, would we see an item at pos? Protocol §8: buildings block the
@@ -88,6 +107,21 @@ class Farmer:
             return False
         safe_m = tuning.get("farm.safe_m")
         return all(math.dist(h.pos_at(threats.t)[:2], me["pos"][:2]) > safe_m for h in hunters)
+
+    def safe_for_drone(self, me: dict, hunters, threats, has_target: bool) -> bool:
+        if has_target:
+            return False
+        hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
+        if hp < tuning.get("farm.drone_min_hp"):
+            return False
+        safe_m = tuning.get("farm.safe_m")
+        if any(math.dist(h.pos_at(threats.t)[:2], me["pos"][:2]) <= safe_m for h in hunters):
+            return False
+        t = threats.t
+        for tr in threats.tracks.values():
+            if math.dist(tr.pos_at(t)[:2], me["pos"][:2]) <= 90.0:
+                return False
+        return True
 
     def on_street(self, pos) -> bool:
         if self.core is None:
@@ -135,7 +169,23 @@ class Farmer:
                 c = min(cubes, key=lambda c: math.dist(c.pos[:2], pos[:2]))
                 self.mode = f"cube {c.id}"
                 return (c.pos[0], c.pos[1])
-        # 2) a crate to shoot
+        # 2) a drone to shoot (C2)
+        if tuning.get("farm.drones") and self.safe_for_drone(me, hunters, threats, has_target):
+            if self.target_drone is None or self.target_drone.id not in self.drones:
+                drones = [d for d in self.drones.values()
+                          if math.dist(d.pos[:2], pos[:2]) <= max_d and zone_ok(d.pos) and self._street("npc", d)]
+                self.target_drone = min(drones, key=lambda d: math.dist(d.pos[:2], pos[:2])) if drones else None
+            if self.target_drone is not None:
+                self.mode = f"drone {self.target_drone.id}"
+                d = math.dist(self.target_drone.pos[:2], pos[:2])
+                d_min = float(tuning.get("farm.drone_dist_min"))
+                d_max = float(tuning.get("farm.drone_dist_max"))
+                if d_min <= d <= d_max and self._clear_shot_at_drone(me):
+                    return (pos[0], pos[1])
+                return (self.target_drone.pos[0], self.target_drone.pos[1])
+        else:
+            self.target_drone = None
+        # 3) a crate to shoot
         if tuning.get("farm.crates"):
             if self.target is None or self.target.id not in self.crates:
                 crates = [c for c in self.crates.values()
@@ -171,3 +221,13 @@ class Farmer:
         h = float(self.cfg.get("crates", {}).get("height", 2.4))
         p = self.target.pos
         return [p[0], p[1], p[2] + h * 0.5]
+
+    def _clear_shot_at_drone(self, me: dict) -> bool:
+        if self.target_drone is None or self.core is None:
+            return self.target_drone is not None
+        x, y, z = me["pos"]
+        mz = (x, y, z + float((me.get("stats") or {}).get("muzzle_height", 7.0)))
+        p = self.target_drone.pos
+        h = float(self.cfg.get("npc", {}).get("height", 3.5))
+        aim = (p[0], p[1], p[2] + h * 0.5)
+        return self.core.shot_los(mz, aim) >= 1.0
