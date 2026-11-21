@@ -17,6 +17,7 @@ import unittest
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, ROOT)
 import core_api  # noqa: E402
+import tuning  # noqa: E402
 from combat import Combat, wrap  # noqa: E402
 from zone import Zone  # noqa: E402
 
@@ -59,7 +60,15 @@ def mech(id_, pos, vel=(0, 0, 0), hp=1400, weapons=("gun",), charging=False, aim
 
 
 class Phase3Test(unittest.TestCase):
+    """Phase 3 behaviour, always under the Phase 3 settings (preset p3), whatever ACTIVE is."""
     core: core_api.MapCore
+
+    def setUp(self):
+        self._saved = tuning.ACTIVE
+        tuning.use("p3")
+
+    def tearDown(self):
+        tuning.use(self._saved)
 
     @classmethod
     def setUpClass(cls):

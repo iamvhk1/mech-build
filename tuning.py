@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "roof_camp"
+ACTIVE = "picker_aggressive"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -39,7 +39,10 @@ PRESETS = {
     "p3_picker": {"retreat.enabled": False},
     "picker_lastresort": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
-    "picker_aggressive": {"retreat.enabled": False, "engage.any_in_range": True},
+    # run 1d, rebased on the best so far (picker_lastresort, 2.54): only engage.any_in_range changes
+    "picker_aggressive": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                          "retreat.on_heavy_damage": False, "retreat.hold_fire": False,
+                          "engage.any_in_range": True},
     # roadmap item 2: rooftop test, on top of the best so far (picker_lastresort, 2.54)
     "roof_camp": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "roof.enabled": True},

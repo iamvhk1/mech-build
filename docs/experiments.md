@@ -28,7 +28,38 @@ and E3 adds HP and nanites, and healing late may matter for the E4 zone burn). S
   to the qualifier and final seeds.
 
 Per run: set `ACTIVE`, run the tests (`TuningTest` catches misspelled keys), commit, push,
-submit on the track page, record the score here.
+submit on the track page, record the score here, **and update the practice vs free-for-all table
+below**.
+
+## Practice vs free-for-all (don't overfit to practice)
+
+Practice is the only thing we can measure, but qualifiers and finals are free-for-alls between
+teams' bots, with no scores published until the end. The incentives differ:
+
+| | Practice (1 vs a 15-bot squad) | Free-for-all (16 independent bots) |
+| :--- | :--- | :--- |
+| Who hunts us | Everyone, sharing vision | Whoever happens to find us |
+| How to place well | Kills (house bots die only by us or the zone) + outlasting the final burn | Outliving others: they kill each other, survival alone climbs the ranking |
+| Shooting | Needed for points | Reveals us (gun heard 320 m), invites third parties, resets our regen timer |
+| Healing | Hard: the squad keeps finding us | Easy and valuable: nobody focuses us, the field thins while we heal |
+
+**Rule:** every setting gets a practice value (measured) and a free-for-all value (reasoned from
+the rules). The final bot carries both and switches on mode detection (E6: `alive` dropping
+without our kills means a free-for-all). Until E6 exists, the bot plays practice settings.
+
+| Setting / experiment | Practice (measured) | Free-for-all (expected) | Why | Practice value | FFA value |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Ranked upgrades (run 1b) | Neutral (2.31 vs 2.33) | Positive | Longer matches, more cubes from crates/kills; nanites and plating help survival | ranked | ranked |
+| Early retreat + hold fire (E1) | **Bad** (1.52 vs ~2.3) | **Likely good** | No one focuses us, so hiding works and healing is cheap; holding fire keeps us hidden and lets others thin each other | off | on (retune later) |
+| Last-resort retreat, keep firing (run 1c) | **Good** (2.54, +0.23) | Good, but weaker than early retreat | Saves us when nearly dead without giving up fights | on | superseded by early retreat |
+| Roof camping (run 2) | **Bad** (2.23, −0.31) | Unknown | Cause unclear (the squad copes with roofs, or our climbing fails on the real server). In a FFA a roof could be a safe overlook, but we have no evidence it works at all | off | off unless evidence |
+| Shoot any mech in range (run 1d) | pending | **Likely bad** | Long-range fights reveal us, start fights we don't need, and invite third parties; placement comes from surviving, not kills | per result | off (opportunistic) |
+| Engage within 60 m / below 35% HP (Phase 3) | Baseline behaviour | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes) | 60 m / 35% | keep, maybe stricter |
+| Lightning first, late mortar swap with laser check | Not tested separately | Same logic | Weapon triangle applies in both modes | as is | as is |
+
+Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
+`"ffa": {"retreat.hp_enter": 0.55, "retreat.hold_fire": True, "engage.any_in_range": False}`),
+applied once mode detection says free-for-all.
 
 ## Settings (defaults in `tuning.py`)
 
@@ -58,6 +89,7 @@ submit on the track page, record the score here.
 | 3 | `p3` (run 1a) | `22ef4ff` | **2.33** | Noise check: identical to run 1. Scores are reproducible on these seeds, so any difference is caused by the change. |
 | 4 | `p3_picker` (run 1b) | `db05867` | 2.31 | Ranked upgrade order alone: neutral (one place in one match). The bot likely gets few offers without cube collection (E3). Keep it; compare 1c/1d against 2.31. |
 | 5 | `picker_lastresort` (run 1c) | `9144f7e` | **2.54** | Best so far (+0.23, ~11 places over 48 matches). Retreat only below 35% HP until 80%, keep shooting back, no hunter/damage triggers. **New baseline.** |
+| 6 | `roof_camp` (run 2) | `6140823` | 2.23 | Roof camping on top of the 2.54 baseline: worse (−0.31). Either the squad handles roofs fine (climbs, mortars, sees us) or our climbing fails on the real server; can't tell without diagnostics. Roofs off for practice; switch kept for a later re-test. |
 
 ## Batch 1 (planned, in order)
 
@@ -66,7 +98,7 @@ submit on the track page, record the score here.
 | 1a | `p3` | Noise: does the same behaviour score 2.33 again? (Verified offline: `p3` gives action-for-action the same output as commit `956e3b7` on the recorded match.) |
 | 1b | `p3_picker` | Does the ranked upgrade picker help on its own? |
 | 1c | `picker_lastresort` | Retreat only below 35% HP, keep shooting back, no hunter/damage triggers |
-| 1d | `picker_aggressive` | Shoot any visible mech in range (score = kills in practice) |
+| 1d | `picker_aggressive` | Shoot any visible mech in range (score = kills in practice). Rebased on the 2.54 baseline after run 1c. |
 
 ## Roadmap (decided 2026-11-21: major items first, small tuning last)
 
