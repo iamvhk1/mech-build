@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.i16 binary
+*.gz binary
+*.so binary
