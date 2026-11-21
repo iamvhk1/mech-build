@@ -17,6 +17,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import core_api  # noqa: E402
+import tuning  # noqa: E402
 import upgrades  # noqa: E402
 from combat import Combat  # noqa: E402
 from strategy import RETREAT, ROTATE, Strategy  # noqa: E402
@@ -80,8 +81,49 @@ class ThreatTest(unittest.TestCase):
         self.assertEqual(tr.tracks, {})
 
 
+class TuningTest(unittest.TestCase):
+    def test_presets_only_use_known_keys(self):
+        """A misspelled key would be silently ignored and spoil an experiment."""
+        for name, preset in tuning.PRESETS.items():
+            unknown = set(preset) - set(tuning.DEFAULTS)
+            self.assertFalse(unknown, f"preset {name!r} has unknown keys {unknown}")
+
+    def test_active_preset_exists(self):
+        self.assertIn(tuning.ACTIVE, tuning.PRESETS)
+
+    def test_p3_reproduces_phase3(self):
+        tuning.use("p3")
+        try:
+            self.assertEqual(tuning.get("upgrades"), "first")
+            self.assertFalse(tuning.get("retreat.enabled"))
+            self.assertEqual(tuning.get("engage.near_m"), 60.0)
+            self.assertFalse(tuning.get("engage.any_in_range"))
+        finally:
+            tuning.use(tuning.ACTIVE)
+
+    def test_aggressive_engages_far_passive_mech(self):
+        c = Combat(CFG, None)
+        far = c.targets(make_obs((0.0, 0.0, 0.0), mechs=[mech(5, (180, 0, 0))]))
+        saved = tuning.ACTIVE
+        try:
+            tuning.use("p3")
+            self.assertIsNone(c.engage_target(far, 10.0, 230))
+            tuning.use("picker_aggressive")
+            self.assertIsNotNone(c.engage_target(far, 10.0, 230))
+        finally:
+            tuning.use(saved)
+
+
 class RetreatTest(unittest.TestCase):
+    """Retreat mechanics, tested under the E1 preset (retreat fully enabled)."""
     core: core_api.MapCore
+
+    def setUp(self):
+        self._saved = tuning.ACTIVE
+        tuning.use("e1")
+
+    def tearDown(self):
+        tuning.use(self._saved)
 
     @classmethod
     def setUpClass(cls):
@@ -170,6 +212,13 @@ class RetreatTest(unittest.TestCase):
 
 
 class BotReplayTest(unittest.TestCase):
+    def setUp(self):
+        self._saved = tuning.ACTIVE
+        tuning.use("e1")
+
+    def tearDown(self):
+        tuning.use(self._saved)
+
     def test_replay_no_errors_and_fast(self):
         import mechfight as mf
         real_run = mf.run

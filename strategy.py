@@ -11,10 +11,11 @@ from __future__ import annotations
 import math
 from typing import List, Optional, Sequence, Tuple
 
+import tuning
+
 ROTATE, RETREAT = "rotate", "retreat"
 
-RETREAT_HP = 0.55            # enter below this HP fraction
-RETREAT_DONE_HP = 0.90       # leave once healed to this
+# thresholds and which triggers are active come from tuning.py (retreat.*)
 HEAVY_DAMAGE_FRAC = 0.20     # ...or this much of max HP lost in the last 2 s
 HEAVY_DAMAGE_HP = 0.85       #    while below this HP fraction
 MANY_HUNTERS = 3             # ...or this many hunters within MANY_RANGE_M
@@ -114,11 +115,17 @@ class Strategy:
         t = float(obs["t"])
         hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
         pos = me["pos"]
+        if not tuning.get("retreat.enabled"):
+            self._set(ROTATE, t)
+            return Decision(ROTATE, why="rotate")
         hunters = self.threats.hunters(pos)
         many = sum(1 for hh in hunters if math.dist(hh.pos_at(t)[:2], pos[:2]) <= MANY_RANGE_M) >= MANY_HUNTERS
         heavy = self.threats.damage_taken(2.0) > HEAVY_DAMAGE_FRAC * float(me.get("max_hp", 1400)) and hp < HEAVY_DAMAGE_HP
-        want_retreat = hp < RETREAT_HP or many or heavy
-        healed = hp >= RETREAT_DONE_HP and not many
+        many = many and tuning.get("retreat.on_hunters")
+        heavy = heavy and tuning.get("retreat.on_heavy_damage")
+        want_retreat = hp < tuning.get("retreat.hp_enter") or many or heavy
+        healed = hp >= tuning.get("retreat.hp_exit") and not many
+        hold_fire = bool(tuning.get("retreat.hold_fire"))
 
         held = t - self.state_t < MIN_STATE_S
         if self.state == ROTATE and want_retreat and not held:
@@ -133,9 +140,9 @@ class Strategy:
             goal = self.hide if self.hide is not None else (pos[0], pos[1])
             escaping = any(math.dist(hh.pos_at(t)[:2], pos[:2]) < 60.0 for hh in hunters) and \
                 float(me.get("energy", 0.0)) > 30.0
-            return Decision(RETREAT, goal=goal, retreat=True, boost=escaping,
+            return Decision(RETREAT, goal=goal, retreat=hold_fire, boost=escaping,
                             why=f"retreat hp {hp:.0%} h{len(hunters)}")
         if self.state == RETREAT:
             # the zone wins: heal where we can, but get inside first (no regen outside the zone)
-            return Decision(RETREAT, goal=None, retreat=True, why="retreat (zone first)")
+            return Decision(RETREAT, goal=None, retreat=hold_fire, why="retreat (zone first)")
         return Decision(ROTATE, why="rotate")

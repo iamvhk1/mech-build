@@ -14,13 +14,12 @@ import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import core_api
+import tuning
 
 TAU = 2 * math.pi
 
 ATTACKER_MEMORY_S = 5.0      # Q1/Q3: "hit us recently"
 FACE_ATTACKER_S = 3.0        # turn the front toward the last attacker for this long
-ENGAGE_NEAR_M = 60.0         # Q1: shoot any mech this close
-LOW_HP_FRAC = 0.35           # Q1: shoot targets below this HP fraction
 AIM_AT_US_RAD = math.radians(4.0)
 SOUND_FACE_S = 2.0
 LASER_SOUND_S = 10.0
@@ -28,7 +27,6 @@ LASER_MAJORITY_RANGE_M = 150.0
 SCAN_AMPL = math.radians(50.0)
 SCAN_PERIOD_S = 4.0
 RELOAD_IDLE_S = 1.5
-LIGHTNING_ENERGY_RESERVE = 20.0
 LIGHTNING_CLOSE_M = 20.0
 MORTAR_MIN_SAFE_M = 12.0
 LATE_ZONE_R = 70.0
@@ -36,8 +34,6 @@ SWAP_CLEAR_M = 50.0
 LIGHTNING_DETOUR_M = 40.0
 MORTAR_DETOUR_M = 25.0
 EVADE_HOLD_S = 1.5
-RETREAT_CORNERED_M = 25.0    # while retreating, still fight back this close
-RETREAT_FINISH_HP = 0.15     # ...or finish a target this low (a kill is +1 place)
 
 
 def wrap(a: float) -> float:
@@ -192,17 +188,18 @@ class Combat:
     def engage_target(self, targets: List[Target], t: float, gun_range: float, retreat: bool = False) -> Optional[Target]:
         best, best_s = None, -1e9
         for m in targets:
-            if retreat and m.dist > RETREAT_CORNERED_M and m.hp / m.max_hp >= RETREAT_FINISH_HP:
+            if retreat and m.dist > tuning.get("retreat.cornered_m") and m.hp / m.max_hp >= tuning.get("retreat.finish_hp"):
                 continue  # regen needs 5 s without dealing damage: hold fire while retreating
             hit_us = self.attacked_recently(m.id, t)
             if m.kind != "mech" and not hit_us:
                 continue  # Q3: drones only when they attack us
             if m.dist > gun_range:
                 continue
-            low = m.hp / m.max_hp < LOW_HP_FRAC
-            if not (hit_us or m.dist <= ENGAGE_NEAR_M or low):
+            near_m = tuning.get("engage.near_m")
+            low = m.hp / m.max_hp < tuning.get("engage.low_hp")
+            if not (hit_us or m.dist <= near_m or low or (m.kind == "mech" and tuning.get("engage.any_in_range"))):
                 continue
-            s = 3.0 * hit_us + 2.0 * (m.dist <= ENGAGE_NEAR_M) + 2.0 * low - m.dist / 100.0 - m.hp / m.max_hp
+            s = 3.0 * hit_us + 2.0 * (m.dist <= near_m) + 2.0 * low - m.dist / 100.0 - m.hp / m.max_hp
             if s > best_s:
                 best, best_s = m, s
         return best
@@ -380,7 +377,7 @@ class Combat:
         d0 = math.dist(muzzle, intended.center)
         if d0 > rng or energy < cost:
             return False
-        if energy - cost < LIGHTNING_ENERGY_RESERVE and d0 > LIGHTNING_CLOSE_M:
+        if energy - cost < tuning.get("lightning.reserve") and d0 > LIGHTNING_CLOSE_M:
             return False
         if abs(wrap(yaw_pitch(muzzle, intended.center)[0] - act_yaw)) > cone / 2:
             return False

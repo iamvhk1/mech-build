@@ -20,6 +20,7 @@ from combat import Combat, EVADE_HOLD_S
 from navigation import Navigator, boost_policy
 from strategy import Strategy
 from threat import ThreatTracker
+import tuning
 import upgrades
 from zone import Zone, choose_destination
 
@@ -42,6 +43,7 @@ class Bot:
         if core_api is not None:
             try:
                 self.core = core_api.MapCore.from_hello(hello)
+                mf.log(f"tuning preset: {tuning.ACTIVE}")
                 mf.log(f"core ready: build {self.core.build_ms:.0f} ms, load {self.core.load_ms:.0f} ms, "
                        f"grid {self.core.nnx}x{self.core.nny}")
             except Exception:
@@ -94,6 +96,8 @@ class Bot:
         st = me.get("stats") or {}
         act: mf.Action = {"tick": obs["tick"]}
         pick = upgrades.pick(obs.get("offer"), me, self.cfg)
+        if pick is not None and tuning.get("upgrades") == "first":
+            pick = 0
         if pick is not None:
             act["pick"] = pick
 
