@@ -13,7 +13,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import tuning
 
-ROTATE, RETREAT, ROOF = "rotate", "retreat", "roof"
+ROTATE, RETREAT, ROOF, BURN = "rotate", "retreat", "roof", "burn"
 
 # thresholds and which triggers are active come from tuning.py (retreat.*)
 HEAVY_DAMAGE_FRAC = 0.20     # ...or this much of max HP lost in the last 2 s
@@ -120,6 +120,28 @@ class Strategy:
         hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
         pos = me["pos"]
         hunters = self.threats.hunters(pos)
+        # Check burn mode (Stage E, E4)
+        if tuning.get("burn.enabled") and self.zone.known:
+            nxt_r = self.zone.next_radius
+            cur_r = self.zone.radius
+            dps = self.zone.dps
+            burn_thresh = float(tuning.get("burn.radius"))
+            is_burn = (nxt_r <= burn_thresh) or (cur_r <= 70.0 and dps >= 160.0) or (cur_r <= burn_thresh)
+            if is_burn:
+                self._set(BURN, t)
+                cx, cy = self.zone.next_center
+                st = me.get("stats") or {}
+                r = float(st.get("radius", 2.5))
+                target = (cx, cy)
+                if self.core is not None:
+                    target = self.core.nearest_walkable(cx, cy, r, True) or (cx, cy)
+                d_to_center = math.hypot(pos[0] - target[0], pos[1] - target[1])
+                goal = (pos[0], pos[1]) if d_to_center <= 3.0 else target
+                boost = d_to_center > 15.0 and float(me.get("energy", 0.0)) > 30.0
+                return Decision(BURN, goal=goal, retreat=False, boost=boost,
+                                why=f"burn r{nxt_r:.0f}m d{d_to_center:.1f}m")
+        if self.state == BURN:
+            self._set(ROTATE, t)
         if tuning.get("roof.enabled") and self.roofs is not None and not zone_urgent:
             d = self.roof_decision(me, hp, hunters)
             if d is not None:

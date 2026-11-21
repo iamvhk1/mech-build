@@ -194,7 +194,7 @@ class Bot:
         goal = self.destination(me, t)
         why = dec.why
         threat = self.combat.laser_threat(targets, [x, y, z + float(st.get("height", 9.0)) / 2])
-        if threat is not None and t >= self.evade_until:
+        if dec.state != "burn" and threat is not None and t >= self.evade_until:
             cover = self.combat.cover_from(threat, me)
             if cover is not None:
                 self.evade_goal, self.evade_until = cover, t + EVADE_HOLD_S

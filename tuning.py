@@ -6,13 +6,16 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "best"
+ACTIVE = "burn"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
     "upgrades": "ranked",
     # mode detection (master plan Stage D, E6)
     "mode.detect": False,           # D1: detect practice vs free-for-all and apply FFA overlay
+    # final zone burn (master plan Stage E, E4)
+    "burn.enabled": False,          # E4: final burn play (center hold in late circles)
+    "burn.radius": 25.0,            # next_radius threshold to enter burn mode
     # engagement policy (Phase 3, Q1)
     "engage.near_m": 60.0,          # shoot any mech this close
     "engage.low_hp": 0.35,          # ...or any target below this HP fraction
@@ -108,6 +111,10 @@ PRESETS = {
     "mode_detect": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                     "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                     "farm.crates": True, "farm.cubes": True, "mode.detect": True},
+    # Stage E, run Z1: best + final burn positioning
+    "burn": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "burn.enabled": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
@@ -148,8 +155,8 @@ def _resolve(name: str) -> dict:
 SETTINGS = _resolve(ACTIVE)
 
 
-def get(key: str):
-    return SETTINGS[key]
+def get(key: str, default=None):
+    return SETTINGS.get(key, default)
 
 
 def set_mode(mode: str) -> None:

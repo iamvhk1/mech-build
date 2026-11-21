@@ -97,6 +97,7 @@ applied once mode detection says free-for-all.
 | `farm.drone_min_hp` / `dist_min` / `dist_max` | 0.90 / 30 / 50 | Drone farming safety: HP ≥ 90%, stand-and-shoot 30–50 m |
 | `farm.safe_m` / `min_hp` / `max_dist` | 120 / 0.6 / 80 | Farming safety: no hunter within, HP at least, how far to look |
 | `mode.detect` | false | D1: detect practice vs free-for-all and apply FFA overlay |
+| `burn.enabled` / `radius` | false / 25 | E4: final burn play (center hold in late circles when next radius ≤ 25 m or DPS ≥ 160) |
 
 Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
 shootability (`Combat.shot_point`, target preference for shootable mechs; pending).
@@ -125,6 +126,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 18 | `drones` (run C2) | `b0f806d` | 3.38 | Hunt isolated NPC drones for 2 cubes each on the 3.38 baseline: 3.38 vs 3.38 (exact tie). Drones are scarce (12 on map), safe conditions (HP ≥ 90%, no hunters ≤ 120 m) rarely arise in practice, and gun noise can alert nearby house bots. Under our rule (need ≥ +0.05 to adopt), kept OFF in `best`. Baseline remains **3.38**. |
 | 19 | `mode_detect` (run D1) | `2c8c63e` | 3.31 | Initial mode detection: 3.31 vs 3.38 (−0.07). Diagnosis: the broad zone radius check (`r > 70` m) allowed occasional mid-game squad zone deaths to be misclassified as unassisted combat deaths, latching into FFA mode with `retreat.hold_fire: True` and `retreat.on_hunters: True`. Against 15 hunters, holding fire caused the bot to die without fighting back. Fixed in D1b. |
 | 20 | `mode_detect` (run D1b) | `c923e9b` | **3.38** | Hardened mode detection + safe FFA overlay: 3.38 vs 3.38 (exact match, zero regression on practice). Pre-shrink check (t < 60s) avoids false triggers on squad zone deaths, and 120s lock prevents late-game false triggers. Mode detection is now proven safe for practice while providing crucial survival adaptation in qualifiers/finals. Kept; incorporated into `best`. Baseline remains **3.38**. |
+| 21 | `burn` (run Z1) | pending | *pending* | Final burn positioning (E4): navigate to and hold the final circle center when next circle radius ≤ 25 m (or radius ≤ 70 m with DPS ≥ 160). Center holding keeps our bot inside the safe zone for the maximum duration while outer mechs burn, and suppresses retreat so the bot fights with all weapons to the end. Active preset: `burn`. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -228,8 +230,8 @@ Worth up to 15 points per match, but only if we are alive at ~6:55.
 
 | Run | What | Decides |
 | :--- | :--- | :--- |
-| P1 (probe) | A "pacifist" preset: never shoot, always hide | Does anyone die without us killing them (zone deaths, the final burn)? A score above 0 means yes, which tells us how much E4 is worth |
-| Z1 | `burn.enabled`: from the second-to-last circle, be at full HP at the final centre, last one outside | The value of end-game positioning |
+| P1 (probe) | A "pacifist" preset: never shoot, always hide | **Skipped:** Run E1 already proved hiding without shooting against the squad yields ~1.52. |
+| Z1 | `burn.enabled`: from the second-to-last circle, navigate to and hold the final circle center, last one outside | Center holding + full weapon fire in the final collapse. **Built & verified with tests in `test_burn.py`. Pending submission.** |
 | Z2 | Late-match healing (retreat thresholds after ~5:30) | Interaction with the burn |
 
 ### Stage F: re-tests and options (useful)
