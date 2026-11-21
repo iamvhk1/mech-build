@@ -8,3 +8,6 @@ arena/
 **/*.so
 **/*.o
 build/
+tests/
+tools/
+**/*.dll

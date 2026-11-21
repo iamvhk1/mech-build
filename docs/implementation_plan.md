@@ -186,13 +186,16 @@ Unknown ids fall back to a generic score by effect path (`mech.hp`, `mech.armor`
 
 ### MVP (first submission)
 
-- [ ] **Phase 1: Core and build**
+- [x] **Phase 1: Core and build** (done 2026-11-21)
   - Map loading, terrain sampling, prism polygons with holes, trees.
   - `vision_los` and `shot_los`, the walkability grid with clearance layers, A*, steering.
   - `core/Makefile`, `ctypes` bindings, and unit tests against known map coordinates.
   - Multi-stage `Dockerfile` (compile `.so` in a builder image, copy it into `python:3.13-slim`).
+  - Results: core build ~0.4 s; floor model within 5 mm of all 378 grounded positions in the recorded match; LOS ~2 µs/ray; A* cross-map avg ~1 ms (max ~5 ms), with threats avg ~2 ms (max ~9 ms); sandboxed `check.py` PASS, p99 < 4 ms.
+  - Implementation notes: one clearance value per cell (not per-radius layers) covers cube growth; A* uses an inflated heuristic (1.3, or 2.0 with threat/zone penalties) for speed at ~2% longer paths; threat visibility is cached per 8 m block.
 - [ ] **Phase 2: Movement and zone**
   - Waypoint following, steering, ledge jumps (`jump` when blocked by > `step_up`).
+  - **Jump edges in the nav grid:** the Ohio Stadium field is a separate walkable island. Both tunnels end in a 3–7 m rise, too steep to walk; a jump (~2.75 m: `jump_speed`² / 2g) plus a short jet clears it. Add jump/jet edges so the bot can reach a final circle inside the stadium.
   - Zone interpolation and early rotation to covered cells.
 - [ ] **Phase 3: Combat basics**
   - Gun lead and range-dependent fire gate, reload logic.

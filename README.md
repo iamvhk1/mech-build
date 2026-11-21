@@ -10,18 +10,33 @@ Autonomous bot for the Mech Royale `mechfight/1` battle royale.
 
 | Path | Purpose |
 | --- | --- |
-| `Dockerfile` | Submission image (must stay at the top level). |
-| `mechfight.py` | Kit protocol wrapper. |
-| `example_bot.py` | Kit example bot; current entrypoint until `bot.py` lands. |
-| `core/` | C++ core (`libmech_core.so`), Phase 1. |
+| `Dockerfile` | Submission image (must stay at the top level). Two stages: compile the core, then a slim runtime. |
+| `bot.py` | Entrypoint. Builds the map core at `hello`, falls back to straight-line movement if it can't. |
+| `core_api.py` | ctypes bindings: `MapCore` (floor, LOS, A*, steering, shell impact), `gun_lead`, `mortar_pitch`. |
+| `core/` | C++ core: `map.cpp` (terrain, prisms, floor model), `los.cpp`, `nav.cpp`, `aim.cpp`, C ABI in `mech_core.h`. |
+| `debug_draw.py` | Optional debug drawing (`MECH_DEBUG=1`); never affects play. |
+| `mechfight.py` | Kit protocol wrapper (unchanged). |
+| `example_bot.py` | Kit example bot, kept for reference. |
+| `tests/` | Core tests, including a check of the floor model against the recorded real match. |
+| `tools/` | `render_map.py` (nav-grid PNGs), `check_docker.sh` (sandboxed conformance check). |
 | `arena/` | Map files for local runs (`/arena` is mounted in matches). |
 | `check/` | Kit conformance check. |
 | `mechfight.schema.json` | Message schema (used by `check/check.py`). |
 
-## Check locally
+## Build and test (Linux or WSL)
+
+The core is a Linux shared library; build and test on Linux, WSL or in Docker. (On this Windows
+machine, application control blocks loading an unsigned locally built DLL.)
 
 ```sh
-python3 check/check.py -- python3 -u example_bot.py
-docker build -t my-bot .
-python3 check/check.py --map-dir /arena -- docker run --rm -i --network none --cpus 1 --memory 512m --read-only --tmpfs /tmp:rw,size=64m --user 65534:65534 -v "$PWD/arena:/arena:ro" my-bot
+make -C core                                   # builds core/libmech_core.so
+python3 -m unittest discover -s tests -v       # MECH_SKIP_TIMING=1 to skip timing asserts
+python3 check/check.py -- python3 -u bot.py    # stderr must show "core ready"
+MECH_DEBUG=1 python3 check/check.py -- python3 -u bot.py
+python3 tools/render_map.py --out /tmp/mapviz --path=-300,-250,400,300
+tools/check_docker.sh                          # builds the image, runs the match sandbox, fails if the core didn't load
 ```
+
+`check.py` alone can't tell whether the core loaded (the bot falls back to straight-line movement),
+so use `tools/check_docker.sh`, or look for `core ready` in the output. Run `check.py` from Linux/WSL:
+on Windows it rewrites `--map-dir /arena` to `C:\arena`.
