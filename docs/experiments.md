@@ -117,6 +117,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 13 | `focus` (run B3) | `65744ad` | 2.63 | Focus fire on the 2.85 baseline: worse (−0.22, ~10 places). Likely: the 1 s grace keeps aiming at a target that ducked behind cover instead of shooting the one we can hit, and time-to-kill ranking can prefer a far wounded target over a near one that is shooting us. Off in both modes. |
 | 15 | `crates` (run C1) | `1f78964` | **3.00** | **New best** (+0.12 over 2.88, ~6 places). Shoot street-level crates and collect their cube, only when safe (no mech to fight, HP ≥ 60%, no hunter within 120 m, zone allows the detour); gun only, stand and shoot within 18 m, within 60 m max. Kept; now part of `best`. |
 | 16 | `cubes` (run C3) | `48c2979` | **3.38** | **New best** (+0.38 over 3.00, ~18 places). Walk over any visible cube on the street (kill drops, floor spawns) when safe. Big win: collecting cubes is completely silent (no gunfire or crate destruction sound heard up to 220 m to attract hunters), grants instant HP healing (+4% max HP healed per cube), scales damage, and accelerates upgrade thresholds early. Kept; now part of `best`. |
+| 17 | `upgrade_first` (run U1) | pending | *pending* | Re-test upgrade order on the 3.38 baseline: always pick choice 0 (measure value of ranked picker now that cube collection is active; compare against 3.38). Active preset: `upgrade_first`. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -193,7 +194,7 @@ neutral today because we rarely get any).
 | C3 | `farm.cubes` | Walk over cubes dropped by our kills (all their cubes + 2) and floor cubes when safe. **Built:** tests in `test_farm.py`. **Done: 3.38 (+0.38), new best, kept.** |
 | C2 | `farm.drones` | Kill isolated drones (2 cubes each), only at full HP and with no hunter nearby |
 
-Then: **re-test the upgrade order** (1 run): it only matters once we get offers.
+Then: **re-test the upgrade order** (run U1 pending: `upgrade_first` on the 3.38 baseline): it only matters once we get offers.
 
 ### Stage D: E6, mode detection + free-for-all settings (crucial for qualifiers)
 

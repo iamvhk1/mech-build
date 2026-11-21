@@ -168,6 +168,16 @@ class FarmTest(unittest.TestCase):
         finally:
             tuning.use(tuning.ACTIVE)
 
+    def test_upgrade_first_preset(self):
+        tuning.use("upgrade_first")
+        try:
+            self.assertEqual(tuning.get("upgrades"), "first")
+            self.assertTrue(tuning.get("farm.cubes"))
+            self.assertTrue(tuning.get("farm.crates"))
+            self.assertTrue(tuning.get("fight.strafe"))
+        finally:
+            tuning.use(tuning.ACTIVE)
+
     # ------------------------------------------------------------ combat gating
 
     def test_combat_shoots_crate_only_without_mech_target(self):

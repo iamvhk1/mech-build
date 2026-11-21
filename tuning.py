@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "best"
+ACTIVE = "upgrade_first"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -73,6 +73,10 @@ PRESETS = {
     "cubes": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True},
+    # Stage C: re-test upgrade order (run U1): best + choice 0 only (compare against 3.38)
+    "upgrade_first": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                      "farm.crates": True, "farm.cubes": True, "upgrades": "first"},
     # Stage B: strafing on the plain best (used if focus fire doesn't win)
     "strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True},
