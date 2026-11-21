@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "best"
+ACTIVE = "blind"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -42,7 +42,7 @@ PRESETS = {
     "p3_picker": {"retreat.enabled": False},
     "picker_lastresort": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
-    # best so far (run 1c, 2.54): the preset to keep on GitHub between experiments
+    # best so far: run 1c settings, 2.54; with the trigger-timing fix (code, run B0) 2.90
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
     # Stage B, run B1: best + fight from cover
