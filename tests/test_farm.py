@@ -158,6 +158,16 @@ class FarmTest(unittest.TestCase):
             tuning.SETTINGS["farm.cubes"] = True                  # (restored by tearDown)
             self.assertIsNotNone(self.plan(f, o3))                # ...C3 collects them
 
+    def test_cubes_preset_active(self):
+        tuning.use("cubes")
+        try:
+            self.assertTrue(tuning.get("farm.cubes"))
+            self.assertTrue(tuning.get("farm.crates"))
+            self.assertTrue(tuning.get("fight.strafe"))
+            self.assertEqual(tuning.get("retreat.hp_enter"), 0.35)
+        finally:
+            tuning.use(tuning.ACTIVE)
+
     # ------------------------------------------------------------ combat gating
 
     def test_combat_shoots_crate_only_without_mech_target(self):
