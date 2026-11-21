@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "best"
+ACTIVE = "drops"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -16,6 +16,10 @@ DEFAULTS = {
     # final zone burn (master plan Stage E, E4)
     "burn.enabled": False,          # E4: final burn play (center hold in late circles)
     "burn.radius": 25.0,            # next_radius threshold to enter burn mode
+    # supply drops (master plan Stage F, E5)
+    "drops.enabled": False,         # E5: contest landed/landing supply drops when safe
+    "drops.safe_m": 80.0,           # safe distance from hunters and drop location
+    "drops.max_dist": 150.0,        # max distance to travel for a supply drop
     # engagement policy (Phase 3, Q1)
     "engage.near_m": 60.0,          # shoot any mech this close
     "engage.low_hp": 0.35,          # ...or any target below this HP fraction
@@ -115,12 +119,16 @@ PRESETS = {
     "burn": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "burn.enabled": True},
+    # Stage F, run F1: best + supply drop contesting
+    "drops": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
             "farm.crates": True, "farm.cubes": True, "farm.drones": True,
             "engage.near_m": 60.0, "engage.low_hp": 0.35, "engage.any_in_range": False,
-            "mode.detect": False, "burn.enabled": True},
+            "mode.detect": False, "burn.enabled": True, "drops.enabled": True},
 }
 
 
@@ -141,6 +149,8 @@ FFA_OVERLAY = {
     "engage.any_in_range": False,
     # final burn play: center holding in late collapse
     "burn.enabled": True,
+    # supply drops in FFA: contest when safe
+    "drops.enabled": True,
 }
 
 CURRENT_MODE = "practice"

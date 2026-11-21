@@ -64,6 +64,7 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Crates and their cubes (`farm.crates`, C1) | **Good** (3.00, +0.12) | Positive | +4% max HP and damage per cube, upgrade offers; gated on safety, so it happens in quiet moments in both modes. Risk: gunfire and the crate breaking (heard 220 m) reveal us | on | on |
 | All visible cubes / kill drops (`farm.cubes`, C3) | **Good** (3.38, +0.38) | Positive | Walking over dropped cubes makes zero gunfire sound (unlike crates which make 220 m noise and need shooting), gives instant HP healing (+4% max HP healed per cube), damage bonus, and faster upgrade offers; safe walks only | on | on |
 | Isolated drones (`farm.drones`, C2) | Tie (3.38 vs 3.38) | Positive | Drones drop 2 cubes (+8% HP and damage) with minimal risk, but in practice safe opportunities are rare and gun sound can attract house bots. Kept off in best; candidate for FFA overlay | off | on |
+| Supply drops (`drops.enabled`, E5) | Testing (run F1) | Positive | +3 power cubes (+12% max HP and damage), full 100% HP heal, full energy if captured alone in 8 m ring for 4 s; safe drops only | off in best | on |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
@@ -98,6 +99,7 @@ applied once mode detection says free-for-all.
 | `farm.safe_m` / `min_hp` / `max_dist` | 120 / 0.6 / 80 | Farming safety: no hunter within, HP at least, how far to look |
 | `mode.detect` | false | D1: detect practice vs free-for-all and apply FFA overlay |
 | `burn.enabled` / `radius` | false / 25 | E4: final burn play (center hold in late circles when next radius ≤ 25 m or DPS ≥ 160) |
+| `drops.enabled` / `safe_m` / `max_dist` | false / 80 / 150 | E5: contest safe supply drops (3 cubes + full HP heal) |
 
 Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
 shootability (`Combat.shot_point`, target preference for shootable mechs; pending).
@@ -127,6 +129,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 19 | `mode_detect` (run D1) | `2c8c63e` | 3.31 | Initial mode detection: 3.31 vs 3.38 (−0.07). Diagnosis: the broad zone radius check (`r > 70` m) allowed occasional mid-game squad zone deaths to be misclassified as unassisted combat deaths, latching into FFA mode with `retreat.hold_fire: True` and `retreat.on_hunters: True`. Against 15 hunters, holding fire caused the bot to die without fighting back. Fixed in D1b. |
 | 20 | `mode_detect` (run D1b) | `c923e9b` | **3.38** | Hardened mode detection + safe FFA overlay: 3.38 vs 3.38 (exact match, zero regression on practice). Pre-shrink check (t < 60s) avoids false triggers on squad zone deaths, and 120s lock prevents late-game false triggers. Mode detection is now proven safe for practice while providing crucial survival adaptation in qualifiers/finals. Kept; incorporated into `best`. Baseline remains **3.38**. |
 | 21 | `burn` (run Z1) | `9edce64` | 3.38 | Final burn positioning on the 3.38 baseline: 3.38 vs 3.38 (exact tie). In practice against the 15-bot squad, matches rarely reach the final 25 m collapse at ~6:55, so practice score is dominated by early/mid-game kills. Center holding and suppressed retreat are essential in FFA end-games where surviving the 260 DPS burn decides 1st place. Kept off in practice `best`; enabled in `FFA_OVERLAY`. Baseline remains **3.38**. |
+| 22 | `drops` (run F1) | pending | pending | Safe supply drop contesting on the 3.38 baseline: captures 8 m ring for 4 s when safe (no hunter within 80 m, no active target, zone allows detour). Grants 3 cubes (+12% HP/dmg) and full HP heal. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -237,7 +240,7 @@ Worth up to 15 points per match, but only if we are alive at ~6:55.
 ### Stage F: re-tests and options (useful)
 
 - Retreat × E2 2 × 2, only if the B1 re-test is ambiguous.
-- E5 supply drops (`drops.enabled`): contest only when no hunter is within ~80 m. 1 run.
+- E5 supply drops (`drops.enabled`): contest only when no hunter is within ~80 m. Run F1 implemented: `drops.py`, safely contests landed or landing drops inside next circles, holds 8 m ring for 4 s capture to gain 3 power cubes, 100% max HP heal, and full energy. Testing vs 3.38 baseline.
 - Roofs: re-test only if E2's cover logic makes a specific roof variant look promising.
 
 ### Stage G: tuning sweeps (small gains; last)

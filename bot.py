@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 import debug_draw as dbg
 import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
+from drops import DropContester
 from farm import Farmer
 from fight import CoverFighter
 from mode import ModeDetector
@@ -63,6 +64,7 @@ class Bot:
         self.fighter = CoverFighter(self.core, self.cfg)
         self.strafer = Strafer(self.core, self.cfg, int(hello.get("seed", 0)))
         self.farmer = Farmer(self.core, self.cfg)
+        self.dropper = DropContester(self.core, self.cfg)
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
         self.evade_goal: Optional[Tuple[float, float]] = None
@@ -129,6 +131,18 @@ class Bot:
         has_target = self.combat.engage_target(targets, float(obs["t"]), gun_range, muzzle=muzzle) is not None
         return self.farmer.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, has_target)
 
+    def drop_goal(self, obs: dict, targets) -> Optional[Tuple[float, float]]:
+        """Stage F: contest supply drop for 3 cubes and full HP heal, or None when unsafe."""
+        me = obs["self"]
+        st = me.get("stats") or {}
+        x, y, z = me["pos"]
+        gi = self.combat.slot_of(me, "gun")
+        gun = self.combat.slots(me)[gi] if gi is not None else None
+        gun_range = float(((gun or {}).get("stats") or self.cfg["weapons"]["gun"]).get("range", 230.0))
+        muzzle = [x, y, z + float(st.get("muzzle_height", 7.0))]
+        has_target = self.combat.engage_target(targets, float(obs["t"]), gun_range, muzzle=muzzle) is not None
+        return self.dropper.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, has_target)
+
     def stuck_paused(self, strafe_xy) -> bool:
         """Pause the navigator's stuck detection only while we are actually strafing: still in a
         fight (strafe_xy) AND the strafer strafed on the previous decision. Back-and-forth jinks
@@ -179,6 +193,7 @@ class Bot:
         self.combat.observe(obs)
         self.threats.update(obs)
         self.farmer.observe(obs)
+        self.dropper.observe(obs)
         self.mode_detector.observe(obs, self.zone)
         targets = self.combat.targets(obs)
         walk = float(st.get("walk_speed", self.cfg["mech"]["walk_speed"]))
@@ -207,6 +222,10 @@ class Bot:
             goal, why = self.fighter_goal, f"fight {self.fighter.mode}"
         elif pickup is not None and self.zone.time_until_outside(pickup["pos"]) >                 math.dist(pickup["pos"][:2], (x, y)) / max(1.0, walk) + 10.0:
             goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
+        elif tuning.get("drops.enabled") and dec.state == "rotate" and not zone_urgent:
+            dg = self.drop_goal(obs, targets)
+            if dg is not None:
+                goal, why = dg, f"drop {self.dropper.mode}"
         elif (tuning.get("farm.crates") or tuning.get("farm.cubes") or tuning.get("farm.drones")) and dec.state == "rotate" and not zone_urgent:
             fg = self.farm_goal(obs, targets)
             if fg is not None:
