@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "burn"
+ACTIVE = "best"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -120,7 +120,7 @@ PRESETS = {
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
             "farm.crates": True, "farm.cubes": True, "farm.drones": True,
             "engage.near_m": 60.0, "engage.low_hp": 0.35, "engage.any_in_range": False,
-            "mode.detect": False},
+            "mode.detect": False, "burn.enabled": True},
 }
 
 
@@ -139,6 +139,8 @@ FFA_OVERLAY = {
     "engage.near_m": 60.0,
     "engage.low_hp": 0.35,
     "engage.any_in_range": False,
+    # final burn play: center holding in late collapse
+    "burn.enabled": True,
 }
 
 CURRENT_MODE = "practice"

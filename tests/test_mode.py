@@ -34,6 +34,7 @@ class ModeDetectionTest(unittest.TestCase):
         self.assertTrue(tuning.PRESETS["ffa"]["farm.crates"])
         self.assertTrue(tuning.PRESETS["ffa"]["farm.cubes"])
         self.assertTrue(tuning.PRESETS["ffa"]["farm.drones"])
+        self.assertTrue(tuning.PRESETS["ffa"]["burn.enabled"])
 
     def test_detection_disabled_when_switch_off(self):
         tuning.use("crates")  # mode.detect is False
