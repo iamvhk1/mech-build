@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 import debug_draw as dbg
 import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
+from fight import CoverFighter
 from navigation import Navigator, boost_policy
 from roofs import RoofIndex
 from strategy import Strategy
@@ -56,6 +57,7 @@ class Bot:
         self.roofs = RoofIndex(self.core, float(self.cfg["mech"]["radius"]), float(self.cfg["mech"]["step_up"])) \
             if (self.core is not None and tuning.get("roof.enabled")) else None
         self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats, self.roofs)
+        self.fighter = CoverFighter(self.core, self.cfg)
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -88,6 +90,16 @@ class Bot:
             self.dest = choose_destination(self.core, self.zone, me["pos"], float(st.get("radius", 2.5)))
             self.dest_key, self.dest_t = key, t
         return self.dest
+
+    def fight_goal(self, obs: dict, targets) -> Optional[Tuple[float, float]]:
+        """B1: where to stand while fighting the current target from cover (None = no cover fight)."""
+        me = obs["self"]
+        gi = self.combat.slot_of(me, "gun")
+        gun = self.combat.slots(me)[gi] if gi is not None else None
+        gun_range = float(((gun or {}).get("stats") or self.cfg["weapons"]["gun"]).get("range", 230.0))
+        target = self.combat.engage_target(targets, float(obs["t"]), gun_range)
+        self.fighter_goal = self.fighter.goal(obs, target, self.threats.hunters(me["pos"]), self.threats, gun)
+        return self.fighter_goal
 
     # ------------------------------------------------------------ decision
 
@@ -129,6 +141,8 @@ class Bot:
             goal, why = self.evade_goal, "evade laser"
         elif dec.goal is not None:
             goal = dec.goal
+        elif tuning.get("fight.cover") and not zone_urgent and self.fight_goal(obs, targets) is not None:
+            goal, why = self.fighter_goal, f"fight {self.fighter.mode}"
         elif pickup is not None:
             d = math.dist(pickup["pos"][:2], (x, y))
             if self.zone.time_until_outside(pickup["pos"]) > d / max(1.0, walk) + 10.0:

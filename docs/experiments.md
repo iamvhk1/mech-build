@@ -56,6 +56,9 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Shoot any mech in range (run 1d) | **Bad** (2.02, −0.52) | **Likely bad** | Long-range fights reveal us, start fights we don't need, and invite third parties; placement comes from surviving, not kills | off | off (opportunistic) |
 | Engage within 60 m / below 35% HP (Phase 3) | Baseline behaviour | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes) | 60 m / 35% | keep, maybe stricter |
 | Lightning first, late mortar swap with laser check | Not tested separately | Same logic | Weapon triangle applies in both modes | as is | as is |
+| Trigger timing fix (always on) | pending (run B0) | Positive | Bug fix: up to ~20% more gun damage in every fight | on | on |
+| Blind fire at unseen attackers (`fight.blind_fire`) | pending (run B2); duel screen: 37/40 wins vs 23/40 | Positive, less often needed | Practice: shared vision lets a bot shoot us through trees we can't see through. FFA: vision is symmetric, so rarer, but firing back at whoever is hitting us is still right | per result | on |
+| Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
 `"ffa": {"retreat.hp_enter": 0.55, "retreat.hold_fire": True, "engage.any_in_range": False}`),
@@ -135,12 +138,16 @@ others. Built as four switches, tested in this order:
 
 | Run | Switch | What it does | Offline check first |
 | :--- | :--- | :--- | :--- |
-| B1 | `fight.cover` | When engaged, move to a nearby spot with cover from the target and step out only to shoot (shoot-and-step-back); reload and heal behind cover | Duel sim with walls: hits taken vs dealt |
-| B2 | `fight.focus` | Target choice by kill potential: lowest effective HP (HP ÷ our damage rate), finish wounded targets, stay on one target | Unit tests on target scoring |
-| B3 | `fight.spacing` | Keep the distance where we win: >50 m from lightning carriers, cover against lasers, close in on mortar carriers | Duel sim per enemy weapon |
-| B4 | `fight.disengage` | Break off fights we're losing (HP race estimate: their damage rate vs ours) | Duel sim |
+| B1 | `fight.cover` | When engaged, move to a nearby spot with cover from the target and step out only to shoot (shoot-and-step-back); reload and heal behind cover | **Dropped offline:** no gain in the duel screen; cover within reach is rare on campus streets |
+| B0 | (bug fix) | Trigger timing: hold the trigger when the weapon is ready before the next decision. Found while screening B1: we released it during the window the next shot would fire, losing ~20% of gun damage | Strafer duel: 48 shots instead of 45 |
+| B2 | `fight.blind_fire` | Fire back along the exact damage bearing at attackers we can't see (foliage blocks sight, not bullets). Distance from a traced-back incoming bullet, else gunshot sound band, else 60 m; never into a wall | Duel screen (geometric hits): won 37/40 vs 23/40, damage ratio 1.67 vs 0.81 |
+| B3 | `fight.focus` | Target choice by kill potential: lowest effective HP (HP ÷ our damage rate), finish wounded targets, stay on one target | Unit tests on target scoring |
+| B4 | `fight.spacing` | Keep the distance where we win: >50 m from lightning carriers, cover against lasers, close in on mortar carriers | Duel sim per enemy weapon |
+| B5 | `fight.disengage` | Break off fights we're losing (HP race estimate: their damage rate vs ours) | Duel sim |
 
-Then: **retreat re-test** after B1 (1 run, interaction rule: cover changes what retreating costs).
+Then: **retreat re-test** after blind fire (1 run, interaction rule: if we win more fights, retreating may cost less or matter less).
+
+**Next runs:** B0 = `best` with the timing fix (compare 2.54; isolates the fix), then B2 = `blind` (compare B0).
 
 ### Stage C: E3, cubes and HP pool (crucial; both modes)
 

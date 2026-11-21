@@ -28,6 +28,13 @@ SCAN_AMPL = math.radians(50.0)
 SCAN_PERIOD_S = 4.0
 RELOAD_IDLE_S = 1.5
 LIGHTNING_CLOSE_M = 20.0
+# Hold the trigger if the weapon will be ready before our next decision (one decision = 2 ticks =
+# 0.1 s). The server fires a held trigger the moment the cooldown ends, so releasing it while the
+# cooldown still runs (but ends inside the action window) wastes ~20% of the gun's fire rate.
+READY_WITHIN_S = 0.1
+BLIND_S = 2.0                # fire back blind along a damage bearing for this long after the hit
+BLIND_DEFAULT_M = 60.0       # assumed attacker distance when nothing better is known
+SOUND_BAND_M = {"near": 35.0, "mid": 100.0, "far": 200.0}
 MORTAR_MIN_SAFE_M = 12.0
 LATE_ZONE_R = 70.0
 SWAP_CLEAR_M = 50.0
@@ -279,11 +286,20 @@ class Combat:
                 why = f"engage {target.id}"
                 self.last_engage_t = t
         # ---- (b) last attacker, (c) mech aiming at us / laser threat
+        blind = None
         if aim is None and self.last_damage and t - self.last_damage[0] < FACE_ATTACKER_S:
             _, bearing, by = self.last_damage
             src = next((m for m in targets if m.id == by), None)
             aim = [yaw_pitch(muzzle, src.center)[0] if src else bearing, 0.0]
             why = "face attacker"
+            # an attacker we can't see (e.g. behind foliage, which bullets ignore): fire back along
+            # the exact damage bearing at chest height
+            if src is None and not retreat and tuning.get("fight.blind_fire") and t - self.last_damage[0] < BLIND_S:
+                blind = self.blind_solution(obs, bearing, muzzle, my_r)
+                if blind is not None:
+                    aim = [blind[0], blind[1]]
+                    why = f"blind fire {by}"
+                    self.last_engage_t = t
         if aim is None:
             facing = threat or next((m for m in sorted(targets, key=lambda m: m.dist)
                                      if m.kind == "mech" and m.aims_at(my_center)), None)
@@ -313,6 +329,14 @@ class Combat:
                 aim, why = mres[0], f"mortar {target.id}"
                 fire[mortar_i] = mres[1]
 
+        # ---- blind fire gate: torso on the bearing, gun ready
+        if blind is not None and gun is not None and float(gun.get("ammo", 1)) > 0 and \
+                float(gun.get("reload", 0.0)) <= 0.0 and float(gun.get("cooldown", 0.0)) < READY_WITHIN_S:
+            spread = math.radians(float(gstats.get("spread_deg", 0.6)))
+            tol = math.atan2(2.0, blind[2]) + spread
+            if abs(wrap(act_yaw - blind[0])) <= tol and abs(act_pitch - blind[1]) <= tol + math.radians(1.5):
+                fire[gun_i] = True
+
         # ---- gun gate (actual torso aim vs the lead solution)
         if gun_usable:
             d = max(1.0, math.dist(muzzle, target.center))
@@ -321,7 +345,7 @@ class Combat:
             tol_pitch = math.atan2(target.height * 0.4, d) + spread
             on = abs(wrap(act_yaw - solution[0])) <= tol_yaw and abs(act_pitch - solution[1]) <= tol_pitch
             # the bullet leaves along the *actual* aim: that line must be clear too
-            if on and float(gun.get("cooldown", 0.0)) <= 0.05 and d <= gun_range and \
+            if on and float(gun.get("cooldown", 0.0)) < READY_WITHIN_S and d <= gun_range and \
                     self.clear_shot(muzzle, (act_yaw, act_pitch, 0.0), target, my_r):
                 fire[gun_i] = True
         # ---- early reload when idle
@@ -359,6 +383,44 @@ class Combat:
         end = [start[i] + dist * d[i] for i in range(3)]  # along this aim, as far as the target
         return self.core.shot_los(start, end) >= 1.0
 
+    def blind_solution(self, obs: dict, bearing: float, muzzle, my_r: float):
+        """(yaw, pitch, distance) to fire back at an attacker we can't see, along the exact damage
+        bearing; None if a building blocks that line (bullets pass trees, not walls).
+        Distance: a visible incoming bullet traced back to the bearing line, else a gunshot sound
+        heard from that direction (near/mid/far), else a default."""
+        x, y = muzzle[0], muzzle[1]
+        bx, by = math.cos(bearing), math.sin(bearing)
+        dist = None
+        for p in obs.get("projectiles") or []:
+            if p.get("kind") != "gun":
+                continue
+            px, py = p["pos"][0] - x, p["pos"][1] - y
+            vx, vy = p["vel"][0], p["vel"][1]
+            den = vx * by - vy * bx
+            if abs(den) < 1e-6:
+                continue
+            # solve us + s*b = bullet + u*v  (u < 0: behind the bullet, toward its shooter)
+            s = (px * vy - py * vx) / -den
+            u = (px * by - py * bx) / -den
+            if s > 5.0 and u < 0.0:
+                dist = s
+                break
+        if dist is None:
+            t = float(obs["t"])
+            heard = [snd for snd in self.sounds if snd[1] == "gun" and t - snd[0] < BLIND_S
+                     and abs(wrap(snd[2] - bearing)) < math.radians(20)]
+            if heard:
+                dist = SOUND_BAND_M.get(max(heard)[3], BLIND_DEFAULT_M)
+        dist = min(dist or BLIND_DEFAULT_M, float(self.cfg["weapons"]["gun"].get("range", 230.0)))
+        tx, ty = x + bx * dist, y + by * dist
+        tz = (self.core.floor_z(tx, ty) if self.core is not None else muzzle[2] - 7.0) + 4.5
+        yaw, pitch = bearing, math.atan2(tz - muzzle[2], dist)
+        if self.core is not None:
+            start = [x + (my_r + 0.5) * bx, y + (my_r + 0.5) * by, muzzle[2]]
+            if self.core.shot_los(muzzle, start) < 1.0 or self.core.shot_los(start, (tx, ty, tz)) < 1.0:
+                return None
+        return yaw, pitch, dist
+
     @staticmethod
     def lightning_range(w: dict) -> float:
         return float(((w or {}).get("stats") or {}).get("range", 45.0))
@@ -368,7 +430,7 @@ class Combat:
         cone, in range with line of sight, and nothing else (mech, drone, crate) is closer within
         the wide cone. Safe whether cone_deg is a half or a full angle."""
         stats = (w or {}).get("stats") or self.cfg["weapons"]["lightning"]
-        if float((w or {}).get("cooldown", 0.0)) > 0.05:
+        if float((w or {}).get("cooldown", 0.0)) >= READY_WITHIN_S:
             return False
         rng = float(stats.get("range", 45.0))
         cone = math.radians(float(stats.get("cone_deg", 30.0)))
@@ -423,7 +485,7 @@ class Combat:
         if math.dist(aim_pt[:2], (x, y)) < MORTAR_MIN_SAFE_M:
             return [yaw, pitch], False
         ay, ap = (me.get("aim") or [0.0, 0.0])[:2]
-        ready = float((w or {}).get("cooldown", 0.0)) <= 0.05
+        ready = float((w or {}).get("cooldown", 0.0)) < READY_WITHIN_S
         on = abs(wrap(ay - yaw)) < math.radians(1.5) and abs(ap - pitch) < math.radians(1.5)
         ok = ready and on
         if ok and self.core is not None:
@@ -447,4 +509,4 @@ class Combat:
         on = abs(wrap(act_yaw - solution[0])) < math.radians(1.0) and abs(act_pitch - solution[1]) < math.radians(1.0)
         if charge >= 0.65 and on:
             return False  # release: fires along the current aim
-        return float((w or {}).get("cooldown", 0.0)) <= 0.05 or charge > 0
+        return float((w or {}).get("cooldown", 0.0)) < READY_WITHIN_S or charge > 0

@@ -28,6 +28,9 @@ DEFAULTS = {
     # rooftop camping (roadmap item 2)
     "roof.enabled": False,          # climb a roof inside the next circle and fight from its edge
     "roof.peek_hp": 0.5,            # step to the edge toward a hunter only above this HP fraction
+    # fight quality (master plan Stage B)
+    "fight.cover": False,           # B1: fight from cover (step out to fire, back to reload / after hits)
+    "fight.blind_fire": False,      # fire back along the damage bearing at attackers we can't see
 }
 
 PRESETS = {
@@ -42,6 +45,12 @@ PRESETS = {
     # best so far (run 1c, 2.54): the preset to keep on GitHub between experiments
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
+    # Stage B, run B1: best + fight from cover
+    "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
+    # best + blind fire at unseen attackers (foliage hides them; bullets pass trees)
+    "blind": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.blind_fire": True},
     # run 1d (2.02, worse), rebased on the best so far (picker_lastresort, 2.54): only engage.any_in_range changes
     "picker_aggressive": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False,
