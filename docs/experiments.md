@@ -96,6 +96,7 @@ applied once mode detection says free-for-all.
 | `farm.drones` | false | C2: hunt isolated NPC drones (2 cubes each) when safe |
 | `farm.drone_min_hp` / `dist_min` / `dist_max` | 0.90 / 30 / 50 | Drone farming safety: HP ≥ 90%, stand-and-shoot 30–50 m |
 | `farm.safe_m` / `min_hp` / `max_dist` | 120 / 0.6 / 80 | Farming safety: no hunter within, HP at least, how far to look |
+| `mode.detect` | false | D1: detect practice vs free-for-all and apply FFA overlay |
 
 Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
 shootability (`Combat.shot_point`, target preference for shootable mechs; pending).
@@ -122,6 +123,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 16 | `cubes` (run C3) | `48c2979` | **3.38** | **New best** (+0.38 over 3.00, ~18 places). Walk over any visible cube on the street (kill drops, floor spawns) when safe. Big win: collecting cubes is completely silent (no gunfire or crate destruction sound heard up to 220 m to attract hunters), grants instant HP healing (+4% max HP healed per cube), scales damage, and accelerates upgrade thresholds early. Kept; now part of `best`. |
 | 17 | `upgrade_first` (run U1) | `4679dea` | 3.35 | Always take choice 0 on the 3.38 baseline: 3.35 vs 3.38 (−0.03, effectively a tie). Confirms the ranked upgrade picker (`nanites` → `plating` → `armor`) has a slight edge (+0.03, ~2 places) over random choice 0, but defensive upgrades alone don't drastically alter squad focus fights. Kept `ranked` in `best`. Baseline remains **3.38**. |
 | 18 | `drones` (run C2) | `b0f806d` | 3.38 | Hunt isolated NPC drones for 2 cubes each on the 3.38 baseline: 3.38 vs 3.38 (exact tie). Drones are scarce (12 on map), safe conditions (HP ≥ 90%, no hunters ≤ 120 m) rarely arise in practice, and gun noise can alert nearby house bots. Under our rule (need ≥ +0.05 to adopt), kept OFF in `best`. Baseline remains **3.38**. |
+| 19 | `mode_detect` (run D1) | pending | *pending* | Mode detection (E6) + Free-For-All overlay on top of 3.38 baseline. In practice matches (1 vs 15 squad), house bots never die unassisted, so practice stays at baseline 3.38 (regression check). In FFA, unassisted deaths latch mode to FFA: early retreat (55/90%, hold fire, on hunters/heavy damage), opportunistic engagement (60 m), and safe cube/crate/drone farming. Active preset: `mode_detect`. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -202,16 +204,16 @@ Stage C complete! Best score remains **3.38** (run C3). Next: Stage D (mode dete
 
 ### Stage D: E6, mode detection + free-for-all settings (crucial for qualifiers)
 
-Practice can't reward this, but the finals depend on it.
+Practice can't reward this directly, but the finals depend on it.
 
 - Mode detection: `alive` dropping without one of our `kill` events means others are dying, so it
   is a free-for-all. Guard against zone deaths: require such a drop outside the last two zone
   phases, or two such drops.
 - A free-for-all overlay in `tuning.py`, applied once detected: early retreat with hold fire
-  (E1's settings), opportunistic engagement only, no long-range fights.
-- Offline: unit tests with synthetic observation streams (practice-like vs free-for-all-like).
-- **One practice run** as a regression check: the score must not drop (detection must never
-  trigger in practice).
+  (E1's settings), opportunistic engagement only (60 m), safe cube, crate, and drone farming.
+- Built & verified with unit tests in `tests/test_mode.py`.
+- **Run D1 (`mode_detect`)**: practice regression check. Score must not drop (detection must never
+  trigger in practice). Active preset: `mode_detect`. **Pending submission.**
 
 ### Stage E: E4, the end of the match (crucial once we survive longer)
 

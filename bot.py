@@ -19,6 +19,7 @@ import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
 from farm import Farmer
 from fight import CoverFighter
+from mode import ModeDetector
 from strafe import Strafer
 from navigation import Navigator, boost_policy
 from roofs import RoofIndex
@@ -62,6 +63,8 @@ class Bot:
         self.fighter = CoverFighter(self.core, self.cfg)
         self.strafer = Strafer(self.core, self.cfg, int(hello.get("seed", 0)))
         self.farmer = Farmer(self.core, self.cfg)
+        self.mode_detector = ModeDetector()
+        self.mode_detector.reset()
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -176,6 +179,7 @@ class Bot:
         self.combat.observe(obs)
         self.threats.update(obs)
         self.farmer.observe(obs)
+        self.mode_detector.observe(obs, self.zone)
         targets = self.combat.targets(obs)
         walk = float(st.get("walk_speed", self.cfg["mech"]["walk_speed"]))
         inside = bool(me.get("in_zone", True))
@@ -234,7 +238,7 @@ class Bot:
 
         dbg.path((x, y), self.nav.path, z + 1.0)
         dbg.goal(goal, z)
-        dbg.label(f"{why} | {self.nav.last_debug} | {self.combat.debug}", (time.perf_counter() - t0) * 1000)
+        dbg.label(f"[{self.mode_detector.mode}] {why} | {self.nav.last_debug} | {self.combat.debug}", (time.perf_counter() - t0) * 1000)
         return act
 
 

@@ -6,11 +6,13 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "best"
+ACTIVE = "mode_detect"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
     "upgrades": "ranked",
+    # mode detection (master plan Stage D, E6)
+    "mode.detect": False,           # D1: detect practice vs free-for-all and apply FFA overlay
     # engagement policy (Phase 3, Q1)
     "engage.near_m": 60.0,          # shoot any mech this close
     "engage.low_hp": 0.35,          # ...or any target below this HP fraction
@@ -102,7 +104,37 @@ PRESETS = {
     # roadmap item 2: rooftop test, on top of the best so far (picker_lastresort, 2.54)
     "roof_camp": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "roof.enabled": True},
+    # Stage D, run D1: best + mode detection & FFA overlay
+    "mode_detect": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                    "farm.crates": True, "farm.cubes": True, "mode.detect": True},
+    # Stage D: Free-for-all overlay preset (for testing / manual verification)
+    "ffa": {"retreat.hp_enter": 0.55, "retreat.hp_exit": 0.90, "retreat.on_hunters": True,
+            "retreat.on_heavy_damage": True, "retreat.hold_fire": True, "fight.strafe": True,
+            "farm.crates": True, "farm.cubes": True, "farm.drones": True,
+            "engage.near_m": 60.0, "engage.low_hp": 0.35, "engage.any_in_range": False,
+            "mode.detect": False},
 }
+
+
+FFA_OVERLAY = {
+    # retreat-to-heal: earlier retreat, heal to 90%, hold fire for quiet regen
+    "retreat.hp_enter": 0.55,
+    "retreat.hp_exit": 0.90,
+    "retreat.on_hunters": True,
+    "retreat.on_heavy_damage": True,
+    "retreat.hold_fire": True,
+    # farming in FFA: silent cubes + safe crates & safe drones
+    "farm.crates": True,
+    "farm.cubes": True,
+    "farm.drones": True,
+    # opportunistic engagement only
+    "engage.near_m": 60.0,
+    "engage.low_hp": 0.35,
+    "engage.any_in_range": False,
+}
+
+CURRENT_MODE = "practice"
 
 
 def _resolve(name: str) -> dict:
@@ -120,8 +152,23 @@ def get(key: str):
     return SETTINGS[key]
 
 
+def set_mode(mode: str) -> None:
+    """Apply mode overlay ('practice' or 'ffa')."""
+    global SETTINGS, CURRENT_MODE
+    CURRENT_MODE = mode
+    s = _resolve(ACTIVE)
+    if mode == "ffa":
+        s.update(FFA_OVERLAY)
+    SETTINGS = s
+
+
+def get_mode() -> str:
+    return CURRENT_MODE
+
+
 def use(name: str) -> None:
     """Switch preset at runtime (tests)."""
-    global SETTINGS, ACTIVE
+    global SETTINGS, ACTIVE, CURRENT_MODE
+    CURRENT_MODE = "practice"
     SETTINGS = _resolve(name)
     ACTIVE = name
