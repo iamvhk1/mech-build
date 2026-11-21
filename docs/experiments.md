@@ -62,7 +62,7 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Focus fire (`fight.focus`, B3) | **Bad** (2.63, −0.22) | Unknown, likely bad for the same reasons | Sticking to a hidden target and chasing far wounded ones costs time and HP | off | off |
 | Strafing in fights (`fight.strafe`) | Tie (2.88 vs 2.85); duel predicted a large gain | Small positive at best | Only dodges gun bullets; lasers and lightning are instant | on (kept by decision despite the tie) | on (dodges gun fire, which matters vs gun-armed bots) |
 | Crates and their cubes (`farm.crates`, C1) | **Good** (3.00, +0.12) | Positive | +4% max HP and damage per cube, upgrade offers; gated on safety, so it happens in quiet moments in both modes. Risk: gunfire and the crate breaking (heard 220 m) reveal us | on | on |
-| All visible cubes / kill drops (`farm.cubes`, C3) | pending (run C3) | Positive | Collecting cubes has no gunfire sound, gives instant HP healing and damage bonus; safe walks only | per result | on |
+| All visible cubes / kill drops (`farm.cubes`, C3) | **Good** (3.38, +0.38) | Positive | Walking over dropped cubes makes zero gunfire sound (unlike crates which make 220 m noise and need shooting), gives instant HP healing (+4% max HP healed per cube), damage bonus, and faster upgrade offers; safe walks only | on | on |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
@@ -91,7 +91,7 @@ applied once mode detection says free-for-all.
 | `fight.focus` | false | B3: stay on one target (1 s grace), prefer quickest kill (HP / hit chance), finish targets below 25% HP. Off: 2.63 vs 2.85 |
 | `fight.strafe` | false | Strafe sideways while fighting, reversing every 0.6–1.5 s (0.35–0.6 s near cover); safeguarded. **On in `best`** |
 | `farm.crates` | false | C1: shoot street-level crates and collect their cube when safe. **On in `best`** |
-| `farm.cubes` | false | C3: also collect any other visible cube (kill drops) when safe. **On in `cubes`** |
+| `farm.cubes` | false | C3: also collect any other visible cube (kill drops) when safe. **On in `best`** |
 | `farm.safe_m` / `min_hp` / `max_dist` | 120 / 0.6 / 80 | Farming safety: no hunter within, HP at least, how far to look |
 
 Code-level fixes (not switches, apply to every preset): trigger timing (`READY_WITHIN_S`, run B0);
@@ -116,7 +116,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 12 | `near90` on the fixed code | – | *skipped* | Decided low priority (a tuning number, expected effect small); moved to Stage G. |
 | 13 | `focus` (run B3) | `65744ad` | 2.63 | Focus fire on the 2.85 baseline: worse (−0.22, ~10 places). Likely: the 1 s grace keeps aiming at a target that ducked behind cover instead of shooting the one we can hit, and time-to-kill ranking can prefer a far wounded target over a near one that is shooting us. Off in both modes. |
 | 15 | `crates` (run C1) | `1f78964` | **3.00** | **New best** (+0.12 over 2.88, ~6 places). Shoot street-level crates and collect their cube, only when safe (no mech to fight, HP ≥ 60%, no hunter within 120 m, zone allows the detour); gun only, stand and shoot within 18 m, within 60 m max. Kept; now part of `best`. |
-| 16 | `cubes` (run C3) | pending | *pending* | Walk over any visible cube on the street (kill drops, floor cubes) when safe, in addition to crate farming (compare against 3.00). Active preset: `cubes`. |
+| 16 | `cubes` (run C3) | `48c2979` | **3.38** | **New best** (+0.38 over 3.00, ~18 places). Walk over any visible cube on the street (kill drops, floor spawns) when safe. Big win: collecting cubes is completely silent (no gunfire or crate destruction sound heard up to 220 m to attract hunters), grants instant HP healing (+4% max HP healed per cube), scales damage, and accelerates upgrade thresholds early. Kept; now part of `best`. |
 | 14 | `strafe` (run B-strafe) | `11c2b69` | 2.88 | Strafe sideways while fighting, on the 2.85 baseline (rebased off focus fire after B3 lost). Safeguards: walkable steps, zone margin, never more exposed to known hunters, short jinks near cover, no hops (stuck detection paused only after a decision where we actually strafed). Duel screen with real leading bullets: won 31/40 vs 18/40, damage taken −18%. **Scored 2.88 (+0.03): a tie.** Likely small because strafing only dodges gun bullets; lasers (instant) and lightning (auto-target) don't care, and lasers were everywhere in the recorded match. Tie under our rule, but **kept on by decision** (points the right way; plausible mechanism). **New baseline: `best` = this, 2.88.** |
 
 ## Batch 1 (done)
@@ -130,9 +130,9 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 
 ## Master plan (decided 2026-11-21; replaces the earlier roadmap)
 
-**Where we stand:** best score **3.00** (run C1). `best` = last-resort retreat + strafing + crate
-farming on the current code; new runs compare against 3.00. We
-still finish ~13th on average and die early in most matches.
+**Where we stand:** best score **3.38** (run C3). `best` = last-resort retreat + strafing + crate
+farming + all visible cubes on the current code; new runs compare against 3.38. Average placement
+climbs to ~12th-13th.
 Leading teams score ~5–6; qualifying needs a top-32 best practice score. The plan is ordered by
 expected gain: first make fights winnable and survivable, then grow the HP/damage pool, then
 secure the free-for-all behaviour, then play for the end of the match, then tune.
@@ -190,7 +190,7 @@ neutral today because we rarely get any).
 | Run | Switch | What it does |
 | :--- | :--- | :--- |
 | C1 | `farm.crates` | Shoot and collect crates (1 cube, 50% weapon drop) when no hunter is within ~120 m. **Built:** 10 tests incl. end-to-end; `best` unchanged vs `11c2b69`; activates in the recorded match only while safe. **Done: 3.00 (+0.12), new best, kept.** |
-| C3 | `farm.cubes` | Walk over cubes dropped by our kills (all their cubes + 2) and floor cubes when safe. **Built:** tests in `test_farm.py`. Run pending (`ACTIVE = "cubes"`). |
+| C3 | `farm.cubes` | Walk over cubes dropped by our kills (all their cubes + 2) and floor cubes when safe. **Built:** tests in `test_farm.py`. **Done: 3.38 (+0.38), new best, kept.** |
 | C2 | `farm.drones` | Kill isolated drones (2 cubes each), only at full HP and with no hunter nearby |
 
 Then: **re-test the upgrade order** (1 run): it only matters once we get offers.
