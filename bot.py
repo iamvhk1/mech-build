@@ -18,6 +18,9 @@ import debug_draw as dbg
 import mechfight as mf
 from combat import Combat, EVADE_HOLD_S
 from navigation import Navigator, boost_policy
+from strategy import Strategy
+from threat import ThreatTracker
+import upgrades
 from zone import Zone, choose_destination
 
 try:
@@ -46,6 +49,8 @@ class Bot:
         self.zone = Zone()
         self.nav = Navigator(self.core, self.cfg)
         self.combat = Combat(self.cfg, self.core)
+        self.threats = ThreatTracker()
+        self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats)
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -88,25 +93,35 @@ class Bot:
         t = float(obs["t"])
         st = me.get("stats") or {}
         act: mf.Action = {"tick": obs["tick"]}
-        if obs.get("offer"):
-            act["pick"] = 0  # Phase 4: effect-scored upgrade picker
+        pick = upgrades.pick(obs.get("offer"), me, self.cfg)
+        if pick is not None:
+            act["pick"] = pick
 
         self.zone.update(obs["zone"], t)
         self.combat.observe(obs)
+        self.threats.update(obs)
         targets = self.combat.targets(obs)
         walk = float(st.get("walk_speed", self.cfg["mech"]["walk_speed"]))
+        inside = bool(me.get("in_zone", True))
+        time_left = self.zone.time_until_outside((x, y))
+        eta = self.nav.path_length((x, y)) / max(1.0, walk)
+        zone_urgent = (not inside) or time_left < eta * 1.15 + 3.0
 
-        # ---- goal: escape a charging laser > wanted pickup (if the zone allows) > zone destination
+        # ---- goal: escape a charging laser > retreat to heal > wanted pickup (if the zone allows)
+        #      > zone destination
+        dec = self.strategy.update(obs, zone_urgent)
         goal = self.destination(me, t)
-        why = "rotate"
+        why = dec.why
         threat = self.combat.laser_threat(targets, [x, y, z + float(st.get("height", 9.0)) / 2])
         if threat is not None and t >= self.evade_until:
             cover = self.combat.cover_from(threat, me)
             if cover is not None:
                 self.evade_goal, self.evade_until = cover, t + EVADE_HOLD_S
-        pickup = self.combat.wanted_pickup(obs, targets, self.zone)
+        pickup = None if dec.retreat else self.combat.wanted_pickup(obs, targets, self.zone)
         if t < self.evade_until and self.evade_goal is not None:
             goal, why = self.evade_goal, "evade laser"
+        elif dec.goal is not None:
+            goal = dec.goal
         elif pickup is not None:
             d = math.dist(pickup["pos"][:2], (x, y))
             if self.zone.time_until_outside(pickup["pos"]) > d / max(1.0, walk) + 10.0:
@@ -114,20 +129,19 @@ class Bot:
         self.nav.set_goal(goal)
 
         # ---- legs
-        eta = self.nav.path_length((x, y)) / max(1.0, walk)
-        inside = bool(me.get("in_zone", True))
-        urgent = boost_policy(me, inside, self.zone.time_until_outside((x, y)), eta)
+        urgent = boost_policy(me, inside, time_left, eta) or dec.boost
         mv = self.nav.step(obs, urgent=urgent, zone_circle=self.zone.current(), shells=self.incoming_shells(obs))
         act.update(mv)
 
         # ---- torso and triggers
-        act.update(self.combat.decide(obs, mv["move"], targets, self.zone))
+        act.update(self.combat.decide(obs, mv["move"], targets, self.zone, retreat=dec.retreat))
         act.update(self.combat.take_action(obs, pickup))
 
         dbg.path((x, y), self.nav.path, z + 1.0)
         dbg.goal(goal, z)
         dbg.label(f"{why} | {self.nav.last_debug} | {self.combat.debug}", (time.perf_counter() - t0) * 1000)
         return act
+
 
 if __name__ == "__main__":
     mf.run(Bot)

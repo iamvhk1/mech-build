@@ -300,7 +300,7 @@ Unknown ids fall back to a generic score by effect path (`mech.hp`, `mech.armor`
 
   | # | Change | What we learn |
   | :--- | :--- | :--- |
-  | E1 | Upgrade picker + `RETREAT` heal cycles (+ threat model) | Does disengaging to heal raise placement? |
+  | E1 | Upgrade picker + `RETREAT` heal cycles (+ threat model). **Built 2026-11-21** (`upgrades.py`, `threat.py`, `strategy.py`); score pending | Does disengaging to heal raise placement? |
   | E2 | Fight selection (`ENGAGE` only vs 1–2 hunters) + peek-shooting + kill finishing | Kill rate vs survival |
   | E3 | Cube economy (`FARM`: crates, isolated drones, kill drops) | Do bigger HP/damage pay off? |
   | E4 | Final-burn play (`BURN`) | Do house bots die to the zone? Can we outlast them? |

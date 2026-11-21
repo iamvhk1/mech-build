@@ -36,6 +36,8 @@ SWAP_CLEAR_M = 50.0
 LIGHTNING_DETOUR_M = 40.0
 MORTAR_DETOUR_M = 25.0
 EVADE_HOLD_S = 1.5
+RETREAT_CORNERED_M = 25.0    # while retreating, still fight back this close
+RETREAT_FINISH_HP = 0.15     # ...or finish a target this low (a kill is +1 place)
 
 
 def wrap(a: float) -> float:
@@ -187,9 +189,11 @@ class Combat:
 
     # ------------------------------------------------------------ Q1/Q3: who to shoot
 
-    def engage_target(self, targets: List[Target], t: float, gun_range: float) -> Optional[Target]:
+    def engage_target(self, targets: List[Target], t: float, gun_range: float, retreat: bool = False) -> Optional[Target]:
         best, best_s = None, -1e9
         for m in targets:
+            if retreat and m.dist > RETREAT_CORNERED_M and m.hp / m.max_hp >= RETREAT_FINISH_HP:
+                continue  # regen needs 5 s without dealing damage: hold fire while retreating
             hit_us = self.attacked_recently(m.id, t)
             if m.kind != "mech" and not hit_us:
                 continue  # Q3: drones only when they attack us
@@ -237,7 +241,8 @@ class Combat:
         me = obs["self"]
         return [Target(m, self.cfg, me["pos"]) for m in obs.get("mechs") or []]
 
-    def decide(self, obs: dict, move: Sequence[float], targets: Optional[List[Target]] = None, zone=None) -> dict:
+    def decide(self, obs: dict, move: Sequence[float], targets: Optional[List[Target]] = None, zone=None,
+               retreat: bool = False) -> dict:
         """Torso and triggers: {"aim": [yaw, pitch], "fire": [bool, bool], "reload": bool}."""
         me = obs["self"]
         t = float(obs["t"])
@@ -263,7 +268,7 @@ class Combat:
         laser_i = self.slot_of(me, "laser")
 
         threat = self.laser_threat(targets, my_center)
-        target = self.engage_target(targets, t, gun_range)
+        target = self.engage_target(targets, t, gun_range, retreat)
         if threat is not None and (target is None or target.dist > threat.dist + 30):
             target = threat if threat.dist <= gun_range else target
 

@@ -13,6 +13,9 @@ Autonomous bot for the Mech Royale `mechfight/1` battle royale.
 | `Dockerfile` | Submission image (must stay at the top level). Two stages: compile the core, then a slim runtime. |
 | `bot.py` | Entrypoint. Builds the map core at `hello`, falls back to straight-line movement if it can't. |
 | `zone.py` | Zone circle over time, time until the edge reaches a point, destination inside the next circle. |
+| `strategy.py` | Behaviour states (E1: rotate, retreat-to-heal with hidden-spot search). |
+| `threat.py` | Threat memory: enemy tracks, who is hunting us, damage taken. |
+| `upgrades.py` | Upgrade picker: nanites, plating x3, nanites, armor, then the rest. |
 | `combat.py` | Torso aim, gun/lightning/mortar firing gates, reloads, slot-1 weapon policy, laser-threat reflex. |
 | `navigation.py` | Walk-first planning, jumps/jets, waypoint following, unsticking, boost policy. |
 | `core_api.py` | ctypes bindings: `MapCore` (floor, LOS, A*, steering, shell impact), `gun_lead`, `mortar_pitch`. |
@@ -20,7 +23,7 @@ Autonomous bot for the Mech Royale `mechfight/1` battle royale.
 | `debug_draw.py` | Optional debug drawing (`MECH_DEBUG=1`); never affects play. |
 | `mechfight.py` | Kit protocol wrapper (unchanged). |
 | `example_bot.py` | Kit example bot, kept for reference. |
-| `tests/` | Core, Phase 2 and Phase 3 tests; `tests/sim.py` is a crude movement simulator (our floor model, not the server). |
+| `tests/` | Core and Phase 2-4 tests; `tests/sim.py` is a crude movement simulator (our floor model, not the server). |
 | `tools/` | `render_map.py` (nav-grid PNGs), `check_docker.sh` (sandboxed conformance check). |
 | `arena/` | Map files for local runs (`/arena` is mounted in matches). |
 | `check/` | Kit conformance check. |
