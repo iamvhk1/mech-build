@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "picker_aggressive"
+ACTIVE = "best"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -39,7 +39,10 @@ PRESETS = {
     "p3_picker": {"retreat.enabled": False},
     "picker_lastresort": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
-    # run 1d, rebased on the best so far (picker_lastresort, 2.54): only engage.any_in_range changes
+    # best so far (run 1c, 2.54): the preset to keep on GitHub between experiments
+    "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+             "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
+    # run 1d (2.02, worse), rebased on the best so far (picker_lastresort, 2.54): only engage.any_in_range changes
     "picker_aggressive": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False,
                           "engage.any_in_range": True},
