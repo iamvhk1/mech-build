@@ -287,6 +287,23 @@ class Strategy:
                 else:
                     self.hide, self.hide_t = (spot or self.hide), t
             goal = self.hide if self.hide is not None else (pos[0], pos[1])
+            if self.hide is None and tuning.get("retreat.flee") and hunters and self.core is not None                     and self.threats.damage_taken(2.0) > 0.0:
+                # nowhere hidden and still being hit: break contact, ~30 m directly away from the attackers
+                cx = sum(hh.pos_at(t)[0] for hh in hunters) / len(hunters)
+                cy = sum(hh.pos_at(t)[1] for hh in hunters) / len(hunters)
+                dx, dy = pos[0] - cx, pos[1] - cy
+                dn = math.hypot(dx, dy)
+                if dn > 1e-6:
+                    r_ = float((me.get("stats") or {}).get("radius", 2.5))
+                    cur_c = self.zone.current() if self.zone.known else None
+                    for ang in (0.0, 0.5, -0.5, 1.0, -1.0):
+                        ca, sa = math.cos(ang), math.sin(ang)
+                        ux, uy = (dx * ca - dy * sa) / dn, (dx * sa + dy * ca) / dn
+                        q = self.core.nearest_walkable(pos[0] + 30.0 * ux, pos[1] + 30.0 * uy, r_, True)
+                        if q is None or (cur_c is not None and self.zone.depth(cur_c, q) < ZONE_MARGIN_M):
+                            continue
+                        goal = (q[0], q[1])
+                        break
             escaping = any(math.dist(hh.pos_at(t)[:2], pos[:2]) < 60.0 for hh in hunters) and \
                 float(me.get("energy", 0.0)) > 30.0
             return Decision(RETREAT, goal=goal, retreat=hold_fire, boost=escaping,
