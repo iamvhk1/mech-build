@@ -229,6 +229,19 @@ class LateOverlayTest(unittest.TestCase):
         self.assertFalse(tuning.is_early())
         self.assertEqual(tuning.get("farm.safe_m"), 120.0)
 
+    def test_early_drones_only_with_the_switch_and_only_early(self):
+        tuning.use("rush_drones")
+        self.assertFalse(tuning.get("farm.drones"))
+        tuning.set_early(True)
+        self.assertTrue(tuning.get("farm.drones"))
+        self.assertEqual(tuning.get("farm.drone_min_hp"), 0.6)
+        tuning.set_early(False)
+        self.assertFalse(tuning.get("farm.drones"))
+        tuning.use("rush")
+        tuning.set_early(True)
+        self.assertFalse(tuning.get("farm.drones"))  # rush alone doesn't hunt drones
+        tuning.use("rush_drones")
+
     def test_late_overlay_only_in_practice(self):
         self.assertEqual(tuning.get("late.at"), 180.0)
         self.assertFalse(tuning.get("retreat.on_hunters"))

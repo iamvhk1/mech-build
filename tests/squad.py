@@ -149,6 +149,17 @@ class Match:
         self.next_drop = 20000
         self.charge = 0.0
         self.held_full = 0.0
+        npc = self.cfg["npc"]
+        self.drones = {}
+        for i, (x, y) in enumerate(self._spawns(int(npc.get("count", 12)), sep0=80.0)):
+            self.drones[100 + i] = {"home": (x, y), "pos": [x, y, self.core.floor_z(x, y)], "hp": float(npc["hp"]),
+                                    "cd": 0.0}
+        self.crate_items = {}
+        cc = self.cfg["crates"]
+        for i, (x, y) in enumerate(self._spawns(int(cc.get("count", 36)), sep0=25.0)):
+            if self.rng.random() < cc.get("roof_fraction", 0.25):
+                continue  # roof crates: never farmed (farm.py skips roofs), so leave them out
+            self.crate_items[1000 + i] = {"pos": [x, y, self.core.floor_z(x, y)], "hp": float(cc["hp"])}
         self.pickups = {}
         kinds = ["mortar", "laser", "lightning"]
         for i, (x, y) in enumerate(self._spawns(int(self.cfg["loot"].get("floor_count", 40)), sep0=30.0)):
@@ -157,7 +168,7 @@ class Match:
         self.last_combat_t = -1e9
         self.kills = 0
         self.zone_deaths = 0
-        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
+        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "crates": 0, "drones": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
                       "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0,
                       "laser_t": None, "laser_shots": 0, "laser_hits": 0, "laser_dmg": 0.0,
                       "drops_taken": 0}
@@ -172,6 +183,8 @@ class Match:
             g = real(*a, **k)
             if g is not None:
                 key = p.mode.split(" ")[0]
+                if "retreat" in str(getattr(self.bot.strategy, "state", "")):
+                    self.stats["loot_retreat"] = self.stats.get("loot_retreat", 0) + (key == "loot")
                 self.stats[key] += 1
             return g
         p.plan = plan
@@ -226,11 +239,23 @@ class Match:
                 mechs.append({"id": h.id, "kind": "mech", "pos": list(h.pos), "vel": list(h.vel),
                               "aim": [math.atan2(y - h.pos[1], x - h.pos[0]) if h.active else 0.0, 0.0],
                               "hp": h.hp, "max_hp": h.max_hp, "cubes": 0, "weapons": ["gun"], "charging": False})
+        for did, dr in self.drones.items():
+            dd = math.dist(dr["pos"][:2], (x, y))
+            if dd <= 45.0 or self.core.can_see((x, y), zz + self.m["eye_height"], self.aim[0], dr["pos"][:2],
+                                               dr["pos"][2] + 1.75, dr["pos"][2] + 3.5, 45.0, 200.0, 120.0):
+                mechs.append({"id": did, "kind": "npc", "pos": list(dr["pos"]), "vel": [0, 0, 0], "aim": [0, 0],
+                              "hp": dr["hp"], "max_hp": float(self.cfg["npc"]["hp"])})
         cubes = []
         for cid, p in self.cube_items.items():
             d = math.dist(p[:2], (x, y))
             if d <= 45.0 or (d <= 200.0 and self.core.vision_los((x, y, zz + self.m["eye_height"]), (p[0], p[1], p[2] + 0.5))):
                 cubes.append({"id": cid, "pos": list(p)})
+        crates = []
+        for cid, c in self.crate_items.items():
+            d = math.dist(c["pos"][:2], (x, y))
+            if d <= 45.0 or (d <= 200.0 and self.core.vision_los((x, y, zz + self.m["eye_height"]),
+                                                                 (c["pos"][0], c["pos"][1], c["pos"][2] + 1.2))):
+                crates.append({"id": cid, "pos": list(c["pos"]), "hp": c["hp"]})
         pickups = []
         for pid, p in self.pickups.items():
             d = math.dist(p["pos"][:2], (x, y))
@@ -255,7 +280,7 @@ class Match:
                       "weapons": [{"kind": "gun", "cooldown": self.cd, "ammo": self.ammo, "reload": self.rl,
                                    "stats": dict(self.g, damage=self.g["damage"] * self._dmg_mult())}, slot1],
                       "stats": st},
-             "mechs": mechs, "projectiles": [], "crates": [], "cubes": cubes, "pickups": pickups, "sounds": [],
+             "mechs": mechs, "projectiles": [], "crates": crates, "cubes": cubes, "pickups": pickups, "sounds": [],
              "beams": [], "events": self.events,
              "drops": [{"id": d["id"], "pos": list(d["pos"]), "radius": self.cfg["drops"]["radius"],
                         "lands_in": max(0.0, d["land_t"] - t), "capture_s": self.cfg["drops"]["capture_s"],
@@ -294,6 +319,77 @@ class Match:
             if ez <= pz <= ez + m["height"] and u < best_u and self.core.shot_los(start, (px, py, pz)) >= 1.0:
                 best, best_u = h, u
         return best
+
+    def _drone_shot(self):
+        """A gun shot that missed every hunter: did it hit a drone (cylinder r 1.8, h 3.5)?"""
+        x, y, z = self.me()
+        d = (math.cos(self.aim[1]) * math.cos(self.aim[0]), math.cos(self.aim[1]) * math.sin(self.aim[0]))
+        npc = self.cfg["npc"]
+        for did, dr in list(self.drones.items()):
+            ex, ey = dr["pos"][0] - x, dr["pos"][1] - y
+            u = ex * d[0] + ey * d[1]
+            if u <= 0 or u > self.g["range"] or abs(ex * d[1] - ey * d[0]) > float(npc.get("radius", 1.8)):
+                continue
+            if self.core.shot_los((x, y, z + self.m["muzzle_height"]),
+                                  (dr["pos"][0], dr["pos"][1], dr["pos"][2] + 1.75)) < 1.0:
+                continue
+            dmg = self.g["damage"] * self._dmg_mult()
+            dr["hp"] -= dmg
+            self.events.append({"type": "hit", "target": did, "amount": dmg, "weapon": "gun"})
+            if dr["hp"] <= 0:
+                del self.drones[did]
+                self.stats["drones"] += 1
+                for _ in range(int(npc.get("cubes", 2))):
+                    self.cube_items[self.next_cube] = [dr["pos"][0] + self.rng.uniform(-1.5, 1.5),
+                                                       dr["pos"][1] + self.rng.uniform(-1.5, 1.5), dr["pos"][2]]
+                    self.next_cube += 1
+            return True
+        return False
+
+    def _drones_act(self, t, moving):
+        """Drones stay home; within aggro range with a line they shoot us (simple hit chance)."""
+        npc = self.cfg["npc"]
+        x, y, z = self.me()
+        for did, dr in self.drones.items():
+            dr["cd"] = max(0.0, dr["cd"] - DT)
+            d = math.dist(dr["pos"][:2], (x, y))
+            if d > float(npc.get("aggro_range", 45.0)) or dr["cd"] > 0:
+                continue
+            if self.core.shot_los((dr["pos"][0], dr["pos"][1], dr["pos"][2] + 2.5), (x, y, z + 4.5)) < 1.0:
+                continue
+            dr["cd"] = float(npc.get("cooldown", 1.0))
+            if self.rng.random() < (0.35 if moving else 0.55):
+                bearing = math.atan2(dr["pos"][1] - y, dr["pos"][0] - x)
+                dmg = float(npc.get("damage", 25))
+                self.hp -= dmg
+                self.last_combat_t = t
+                self.events.append({"type": "damaged", "amount": dmg, "weapon": "npc", "bearing": bearing,
+                                    "by": did, "rear": False})
+
+    def _crate_shot(self):
+        """A gun shot that missed every hunter: did it hit a crate (cylinder r 1.4, h 2.4)?"""
+        cc = self.cfg["crates"]
+        x, y, z = self.me()
+        d = (math.cos(self.aim[1]) * math.cos(self.aim[0]), math.cos(self.aim[1]) * math.sin(self.aim[0]))
+        for cid, c in list(self.crate_items.items()):
+            ex, ey = c["pos"][0] - x, c["pos"][1] - y
+            u = ex * d[0] + ey * d[1]
+            if u <= 0 or u > 60.0 or abs(ex * d[1] - ey * d[0]) > float(cc.get("radius", 1.4)):
+                continue
+            if self.core.shot_los((x, y, z + self.m["muzzle_height"]), (c["pos"][0], c["pos"][1], c["pos"][2] + 1.2)) < 1.0:
+                continue
+            c["hp"] -= self.g["damage"] * self._dmg_mult()
+            if c["hp"] <= 0:
+                del self.crate_items[cid]
+                self.stats["crates"] += 1
+                for _ in range(int(cc.get("cubes", 1))):
+                    self.cube_items[self.next_cube] = [c["pos"][0], c["pos"][1], c["pos"][2]]
+                    self.next_cube += 1
+                if self.rng.random() < self.cfg["crates"].get("weapon_chance", 0.0) or \
+                        self.rng.random() < self.cfg["loot"].get("crate_weapon_chance", 0.5):
+                    kind = self.rng.choice(["mortar", "laser", "lightning"])
+                    self.pickups[8100 + cid] = {"kind": kind, "pos": [c["pos"][0] + 1.5, c["pos"][1], c["pos"][2]]}
+            return
 
     def _kill(self, h):
         h.alive = False
@@ -429,6 +525,8 @@ class Match:
                     self.rl = self.g["reload"]
                 self.last_combat_t = t
                 h = self._our_shot()
+                if h is None and not self._drone_shot():
+                    self._crate_shot()
                 if h is not None:
                     dmg = self.g["damage"] * self._dmg_mult()
                     h.hp -= dmg
@@ -518,6 +616,8 @@ class Match:
                         self.max_hp += gain
                         self.hp += gain
                     self.events.append({"type": "pickup", "cubes": self.cubes})
+            # drones
+            self._drones_act(t, moving)
             # squad
             self._release(t)
             for h in self.hunters:
@@ -605,7 +705,7 @@ def summary(name, rs):
             f"loot {mean('loot'):5.1f}  split {mean('split'):5.1f}  press {mean('press'):5.1f}  zone deaths {mean('zone_deaths'):4.2f}  "
             f"armed {armed}/{n} (t {armed_t:4.0f}s)  lightning dmg {mean('lightning_dmg'):6.0f}  "
             f"laser {lasered}/{n} hits {hits}/{shots} dmg {mean('laser_dmg'):5.0f}  "
-            f"drops {mean('drops_taken'):4.2f}  hunt {mean('hunt'):5.1f}  "
+            f"drops {mean('drops_taken'):4.2f}  hunt {mean('hunt'):5.1f}  crates {mean('crates'):4.1f}  drones {mean('drones'):4.2f}  "
             f"errors {sum(r['errors'] for r in rs)}  max {max(r['max_ms'] for r in rs):5.1f} ms")
 
 

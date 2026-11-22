@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "rush"
+ACTIVE = "rush_drones"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -71,6 +71,7 @@ DEFAULTS = {
     "late.at": None,
     # early-match cube rush (practice): until this match time, apply EARLY_OVERLAY (None = never)
     "early.until": None,
+    "early.drones": False,          # E4: during the early phase, also hunt NPC drones (2 cubes each)
 }
 
 PRESETS = {
@@ -487,6 +488,12 @@ PRESETS = {
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
               "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 100.0},
+    # E4: best + early phase (first 120 s): rush (farm up to 250 m, hunters >= 60 m) and hunt NPC drones
+    "rush_drones": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0, "early.drones": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
@@ -536,6 +543,12 @@ EARLY_OVERLAY = {
     "farm.safe_m": 60.0,
 }
 
+# Early drone hunting (with early.drones): drones (350 HP, 2 cubes) while no hunter is around yet
+EARLY_DRONES_OVERLAY = {
+    "farm.drones": True,
+    "farm.drone_min_hp": 0.6,
+}
+
 CURRENT_MODE = "practice"
 CURRENT_LATE = False
 CURRENT_EARLY = False
@@ -564,6 +577,8 @@ def _apply() -> None:
     else:
         if CURRENT_EARLY:
             s.update(EARLY_OVERLAY)
+            if s.get("early.drones"):
+                s.update(EARLY_DRONES_OVERLAY)
         if CURRENT_LATE:
             s.update(LATE_OVERLAY)
     SETTINGS = s
