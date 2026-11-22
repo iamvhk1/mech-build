@@ -87,7 +87,8 @@ class Strategy:
         x, y, _ = me["pos"]
         eyes = self._eyes(hunters)
         if not eyes:
-            return None
+            # nobody can see us: where we stand is hidden; stay and regenerate (retreat.fresh_hide)
+            return (x, y) if tuning.get("retreat.fresh_hide") else None
         if self.hidden((x, y), eyes, h):
             return (x, y)
         cur = self.zone.current() if self.zone.known else None
@@ -275,7 +276,16 @@ class Strategy:
         if self.state == RETREAT and not zone_urgent:
             if self.hide is None or t - self.hide_t >= HIDE_REFRESH_S:
                 spot = self.find_hide(me, hunters)
-                self.hide, self.hide_t = (spot or self.hide), t
+                if tuning.get("retreat.fresh_hide"):
+                    # never keep a spot chosen against hunters that are gone: only if still hidden now
+                    if spot is None and self.hide is not None:
+                        eyes = self._eyes(hunters)
+                        h_ = float((me.get("stats") or {}).get("height", 9.0))
+                        if eyes and not self.hidden(self.hide, eyes, h_):
+                            self.hide = None
+                    self.hide, self.hide_t = (spot or self.hide), t
+                else:
+                    self.hide, self.hide_t = (spot or self.hide), t
             goal = self.hide if self.hide is not None else (pos[0], pos[1])
             escaping = any(math.dist(hh.pos_at(t)[:2], pos[:2]) < 60.0 for hh in hunters) and \
                 float(me.get("energy", 0.0)) > 30.0
