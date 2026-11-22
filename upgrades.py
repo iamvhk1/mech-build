@@ -59,12 +59,29 @@ def score(choice_id: str, taken: Sequence[str], held_weapons: Sequence[str], def
     return s
 
 
-def pick(offer: Optional[dict], me: dict, cfg: dict) -> Optional[int]:
+DURABLE = {"plating": 100.0, "armor": 90.0, "gun_rate": 70.0, "gun_damage": 69.0,
+           "lightning_efficiency": 68.0, "lightning_chain": 67.0, "gyros": 50.0, "nanites": 45.0}
+
+
+def score_durable(choice_id: str, taken: Sequence[str], held_weapons: Sequence[str], defs: Dict[str, dict]) -> float:
+    """`upgrades: durable`: we die in continuous fights, so raw toughness (plating, then armor) and
+    damage first; out-of-combat regen (nanites) last. Unlisted ids fall back to the ranked score / 10."""
+    if choice_id in DURABLE:
+        d = defs.get(choice_id) or {}
+        req = d.get("requires")
+        if req and req not in held_weapons:
+            return 0.0
+        return DURABLE[choice_id] - sum(1 for u in taken if u == choice_id) * 0.5
+    return score(choice_id, taken, held_weapons, defs) / 10.0
+
+
+def pick(offer: Optional[dict], me: dict, cfg: dict, mode: str = "ranked") -> Optional[int]:
     """Index of the best choice in the pending offer, or None if there is no offer."""
     if not offer or not offer.get("choices"):
         return None
     defs = {u["id"]: u for u in cfg.get("upgrades") or []}
     taken: List[str] = list(me.get("upgrades") or [])
     held = [w["kind"] for w in (me.get("weapons") or []) if w]
-    scores = [score(c.get("id", ""), taken, held, defs) for c in offer["choices"]]
+    fn = score_durable if mode == "durable" else score
+    scores = [fn(c.get("id", ""), taken, held, defs) for c in offer["choices"]]
     return max(range(len(scores)), key=lambda i: scores[i])

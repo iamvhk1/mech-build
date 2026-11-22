@@ -203,7 +203,7 @@ class Bot:
             return {"tick": obs["tick"]}  # diagnostic probe: stand still, hold fire (no more points)
         st = me.get("stats") or {}
         act: mf.Action = {"tick": obs["tick"]}
-        pick = upgrades.pick(obs.get("offer"), me, self.cfg)
+        pick = upgrades.pick(obs.get("offer"), me, self.cfg, str(tuning.get("upgrades")))
         if pick is not None and tuning.get("upgrades") == "first":
             pick = 0
         if pick is not None:

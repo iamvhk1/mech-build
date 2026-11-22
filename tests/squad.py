@@ -129,8 +129,9 @@ class Match:
         self.rng = random.Random(seed)
         self.bot = B.Bot(self.hello)
         self.core = self.bot.core
-        self.m = self.cfg["mech"]
-        self.g = self.cfg["weapons"]["gun"]
+        self.m = dict(self.cfg["mech"])            # our mech (upgrades change our copy only)
+        self.g = self.cfg["weapons"]["gun"]        # house bots' gun
+        self.og = dict(self.g)                     # our gun (upgrades change our copy only)
         self.zone = Zone(self.cfg["zone"], self.rng)
         self.max_s = max_s
         spots = self._spawns(16)
@@ -145,11 +146,16 @@ class Match:
                     h.pref = min(h.pref, 35.0)  # lightning carriers close in
         self.hp = self.max_hp = float(self.m["hp"])
         self.cubes = 0
+        self.ups = []            # upgrade ids taken
+        self.offer = None
+        self.offers_due = 0      # thresholds reached but not yet offered
+        self.offer_id = 0
+        self.armor = 0.0
         self.aim = [0.0, 0.0]
-        self.ammo, self.cd, self.rl = self.g["mag"], 0.0, 0.0
+        self.ammo, self.cd, self.rl = self.og["mag"], 0.0, 0.0
         self.cube_items = {}
         self.next_cube = 5000
-        self.lw = self.cfg["weapons"]["lightning"]
+        self.lw = dict(self.cfg["weapons"]["lightning"])
         self.slot1 = None          # kind of the weapon in slot 1 (lightning and laser fire in this sim)
         self.cd1 = 0.0
         self.lz = self.cfg["weapons"]["laser"]
@@ -178,7 +184,7 @@ class Match:
         self.last_combat_t = -1e9
         self.kills = 0
         self.zone_deaths = 0
-        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "crates": 0, "drones": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
+        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "crates": 0, "drones": 0, "los": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
                       "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0,
                       "laser_t": None, "laser_shots": 0, "laser_hits": 0, "laser_dmg": 0.0,
                       "drops_taken": 0}
@@ -286,19 +292,68 @@ class Match:
         o = {"type": "obs", "tick": tick, "t": t, "alive": self.alive_count(),
              "self": {"id": 0, "pos": [x, y, zz], "vel": [0, 0, self.sim.vz], "aim": list(self.aim),
                       "hp": self.hp, "max_hp": self.max_hp, "energy": self.sim.energy, "max_energy": self.m["energy"],
-                      "grounded": self.sim.grounded, "cubes": self.cubes, "upgrades": [],
+                      "grounded": self.sim.grounded, "cubes": self.cubes, "upgrades": list(self.ups),
                       "in_zone": Zone.inside(z, (x, y)),
                       "weapons": [{"kind": "gun", "cooldown": self.cd, "ammo": self.ammo, "reload": self.rl,
-                                   "stats": dict(self.g, damage=self.g["damage"] * self._dmg_mult())}, slot1],
+                                   "stats": dict(self.og, damage=self.og["damage"] * self._dmg_mult())}, slot1],
                       "stats": st},
              "mechs": mechs, "projectiles": [], "crates": crates, "cubes": cubes, "pickups": pickups, "sounds": [],
              "beams": [], "events": self.events,
              "drops": [{"id": d["id"], "pos": list(d["pos"]), "radius": self.cfg["drops"]["radius"],
                         "lands_in": max(0.0, d["land_t"] - t), "capture_s": self.cfg["drops"]["capture_s"],
                         "progress": d["progress"], "holder": 0 if d["progress"] > 0 else None} for d in self.drops],
-             "zone": z, "offer": None}
+             "zone": z, "offer": self.offer}
         self.events = []
         return o
+
+    def _gain_cube(self):
+        self.cubes += 1
+        if self.cubes in self.cfg["cubes"]["upgrade_thresholds"]:
+            self.offers_due += 1
+
+    def _offer_tick(self, t, act):
+        """Pick on the current offer (or default to choice 0 at expiry), then draw the next."""
+        if self.offer is not None:
+            pick = act.get("pick")
+            if pick is None and t >= self.offer["expires"]:
+                pick = 0
+            if pick is not None:
+                self._apply_upgrade(self.offer["choices"][int(pick)]["id"])
+                self.offer = None
+        if self.offer is None and self.offers_due > 0:
+            self.offers_due -= 1
+            held = ["gun"] + ([self.slot1] if self.slot1 else [])
+            pool = []
+            for u in self.cfg["upgrades"]:
+                if sum(1 for x in self.ups if x == u["id"]) >= u.get("max", 1):
+                    continue
+                if u.get("requires") and u["requires"] not in held:
+                    continue
+                pool.append(u)
+            if pool:
+                self.offer_id += 1
+                ch = self.rng.sample(pool, min(3, len(pool)))
+                self.offer = {"id": self.offer_id, "expires": t + 5.0,
+                              "choices": [{"id": u["id"], "name": u["name"], "desc": u["desc"]} for u in ch]}
+
+    def _apply_upgrade(self, uid):
+        self.ups.append(uid)
+        self.events.append({"type": "upgrade", "id": uid})
+        if uid == "plating":
+            self.max_hp *= 1.15
+            self.hp *= 1.15
+        elif uid == "armor":
+            self.armor += 0.08
+        elif uid == "nanites":
+            self.m["regen_per_s"] = self.m["regen_per_s"] * 1.6
+            self.m["regen_delay"] = max(0.5, self.m["regen_delay"] - 1.5)
+        elif uid == "gun_rate":
+            self.og["cooldown"] = self.og["cooldown"] * 0.87
+        elif uid == "gun_damage":
+            self.og["damage"] = self.og["damage"] * 1.15
+        elif uid == "lightning_efficiency":
+            self.lw["energy"] = self.lw["energy"] * 0.65
+            self.lw["damage"] = self.lw["damage"] * 1.1
 
     def _dmg_mult(self):
         return 1.0 + float(self.cfg["cubes"]["damage_per_cube"]) * min(self.cubes, self.cfg["cubes"]["stat_cap"])
@@ -339,12 +394,12 @@ class Match:
         for did, dr in list(self.drones.items()):
             ex, ey = dr["pos"][0] - x, dr["pos"][1] - y
             u = ex * d[0] + ey * d[1]
-            if u <= 0 or u > self.g["range"] or abs(ex * d[1] - ey * d[0]) > float(npc.get("radius", 1.8)):
+            if u <= 0 or u > self.og["range"] or abs(ex * d[1] - ey * d[0]) > float(npc.get("radius", 1.8)):
                 continue
             if self.core.shot_los((x, y, z + self.m["muzzle_height"]),
                                   (dr["pos"][0], dr["pos"][1], dr["pos"][2] + 1.75)) < 1.0:
                 continue
-            dmg = self.g["damage"] * self._dmg_mult()
+            dmg = self.og["damage"] * self._dmg_mult()
             dr["hp"] -= dmg
             self.events.append({"type": "hit", "target": did, "amount": dmg, "weapon": "gun"})
             if dr["hp"] <= 0:
@@ -371,7 +426,7 @@ class Match:
             dr["cd"] = float(npc.get("cooldown", 1.0))
             if self.rng.random() < (0.35 if moving else 0.55):
                 bearing = math.atan2(dr["pos"][1] - y, dr["pos"][0] - x)
-                dmg = float(npc.get("damage", 25))
+                dmg = float(npc.get("damage", 25)) * (1.0 - self.armor)
                 self.hp -= dmg
                 self.last_combat_t = t
                 self.events.append({"type": "damaged", "amount": dmg, "weapon": "npc", "bearing": bearing,
@@ -389,7 +444,7 @@ class Match:
                 continue
             if self.core.shot_los((x, y, z + self.m["muzzle_height"]), (c["pos"][0], c["pos"][1], c["pos"][2] + 1.2)) < 1.0:
                 continue
-            c["hp"] -= self.g["damage"] * self._dmg_mult()
+            c["hp"] -= self.og["damage"] * self._dmg_mult()
             if c["hp"] <= 0:
                 del self.crate_items[cid]
                 self.stats["crates"] += 1
@@ -461,7 +516,7 @@ class Match:
         x, y, _ = self.me()
         bearing = math.atan2(h.pos[1] - y, h.pos[0] - x)
         rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
-        dmg = dmg * (self.m["rear_mult"] if rear else 1.0)
+        dmg = dmg * (self.m["rear_mult"] if rear else 1.0) * (1.0 - self.armor)
         self.hp -= dmg
         self.last_combat_t = t
         self.hit_log.append((t, h.id))
@@ -525,7 +580,7 @@ class Match:
         if self.rng.random() < p:
             bearing = math.atan2(h.pos[1] - y, h.pos[0] - x)
             rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
-            dmg = self.g["damage"] * (self.m["rear_mult"] if rear else 1.0)
+            dmg = self.g["damage"] * (self.m["rear_mult"] if rear else 1.0) * (1.0 - self.armor)
             self.hp -= dmg
             self.last_combat_t = t
             self.hit_log.append((t, h.id))
@@ -573,26 +628,28 @@ class Match:
             if self.rl > 0:
                 self.rl = max(0.0, self.rl - DT)
                 if self.rl == 0:
-                    self.ammo = self.g["mag"]
-            if act.get("reload") and self.rl == 0 and self.ammo < self.g["mag"]:
-                self.rl = self.g["reload"]
+                    self.ammo = self.og["mag"]
+            if act.get("reload") and self.rl == 0 and self.ammo < self.og["mag"]:
+                self.rl = self.og["reload"]
             fire = act.get("fire") or [False, False]
             if fire[0] and self.cd == 0 and self.ammo > 0 and self.rl == 0:
                 self.ammo -= 1
-                self.cd = self.g["cooldown"]
+                self.cd = self.og["cooldown"]
                 if self.ammo == 0:
-                    self.rl = self.g["reload"]
+                    self.rl = self.og["reload"]
                 self.last_combat_t = t
                 h = self._our_shot()
                 if h is None and not self._drone_shot():
                     self._crate_shot()
                 if h is not None:
-                    dmg = self.g["damage"] * self._dmg_mult()
+                    dmg = self.og["damage"] * self._dmg_mult()
                     h.hp -= dmg
                     h.active = True  # shooting a dormant bot wakes it
                     self.events.append({"type": "hit", "target": h.id, "amount": dmg, "weapon": "gun"})
                     if h.hp <= 0:
                         self._kill(h)
+            if step % 2 == 0:
+                self._offer_tick(t, act)
             # take a weapon
             tk = act.get("take")
             if tk is not None and tk in self.pickups:
@@ -668,7 +725,7 @@ class Match:
                 p = self.cube_items[cid]
                 if math.hypot(p[0] - x, p[1] - y) <= self.cfg["cubes"]["pickup_radius"] and abs(p[2] - zz) <= 4.0:
                     del self.cube_items[cid]
-                    self.cubes += 1
+                    self._gain_cube()
                     self.stats["cubes"] += 1
                     if self.cubes <= self.cfg["cubes"]["stat_cap"]:
                         gain = float(self.m["hp"]) * float(self.cfg["cubes"]["hp_per_cube"])
@@ -712,7 +769,7 @@ class Match:
                         self.drops.remove(d)
                         self.stats["drops_taken"] += 1
                         for _ in range(int(dc["cubes"])):
-                            self.cubes += 1
+                            self._gain_cube()
                             if self.cubes <= self.cfg["cubes"]["stat_cap"]:
                                 gain = float(self.m["hp"]) * float(self.cfg["cubes"]["hp_per_cube"])
                                 self.max_hp += gain

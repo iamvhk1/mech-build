@@ -33,6 +33,8 @@ PRESS_FROM_M = 32.0       # ...when it is farther than this
 PRESS_MAX_M = 90.0        # ...and not farther than this
 PRESS_MIN_HP = 0.50
 PRESS_MIN_ENERGY = 35.0   # ~4 s of arcs (3 energy per 0.25 s shot)
+LOS_STEP_M = 7.0          # los steering: candidate spots this far away in 16 directions
+LOS_RANGE_M = 110.0       # ...counting fresh hunters this close
 HUNT_MIN_HP = 0.70        # hunt: go after the only mech we know of (the squad sends one at a time early)
 HUNT_MIN_ENERGY = 50.0
 
@@ -96,6 +98,47 @@ class Pacer:
             return None
         self.mode = f"loot {best.id}"
         return (best.pos[0], best.pos[1])
+
+    def _exposure(self, xy, eyes, h: float) -> int:
+        z = self.core.floor_z(xy[0], xy[1])
+        n = 0
+        for e in eyes:
+            if self.core.shot_los(e, (xy[0], xy[1], z + h * 0.5)) >= 1.0 or \
+                    self.core.shot_los(e, (xy[0], xy[1], z + h)) >= 1.0:
+                n += 1
+        return n
+
+    def _los_goal(self, me: dict, pos, hunter_pos, zone, walk: float) -> Optional[Tuple[float, float]]:
+        st = me.get("stats") or {}
+        r = float(st.get("radius", 2.5))
+        h = float(st.get("height", 9.0))
+        eye = float(self.cfg["mech"].get("eye_height", 8.0))
+        eyes = [(p[0], p[1], self.core.floor_z(p[0], p[1]) + eye) for p in hunter_pos
+                if math.dist(p[:2], pos[:2]) <= LOS_RANGE_M]
+        if len(eyes) < 2:
+            return None
+        here = self._exposure(pos, eyes, h)
+        if here < 2:
+            return None
+        nearest = min(hunter_pos, key=lambda p: math.dist(p[:2], pos[:2]))
+        best, best_s = None, (here, 0.0)
+        for k in range(16):
+            a = 2 * math.pi * k / 16
+            q = self.core.nearest_walkable(pos[0] + LOS_STEP_M * math.cos(a), pos[1] + LOS_STEP_M * math.sin(a), r, False)
+            if q is None or math.dist(q, pos[:2]) > LOS_STEP_M + 3.0:
+                continue
+            if not self.core.segment_walkable((pos[0], pos[1]), q, r * 0.9):
+                continue
+            if not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
+                continue
+            e = self._exposure(q, eyes, h)
+            s = (e, math.dist(q, nearest[:2]))  # fewest eyes, then stay close to the lead chaser
+            if s < best_s:
+                best, best_s = q, s
+        if best is None:
+            return None
+        self.mode = f"los {here}->{best_s[0]}"
+        return (best[0], best[1])
 
     def plan(self, obs: dict, zone, hunters, threats, cubes, walk: float) -> Optional[Tuple[float, float]]:
         """(x, y) goal, or None to leave the decision to drops / farming / the zone destination.
@@ -164,6 +207,13 @@ class Pacer:
                     if goal is not None and self._zone_ok(zone, goal, pos, walk):
                         self.mode = f"hunt {tr.id} {d:.0f}m"
                         return goal
+
+        # 4) line-of-sight steering: with 2+ hunters able to shoot us, step to the nearby spot where the
+        # fewest can (ideally one: our lightning works on it while a building blocks the rest)
+        if tuning.get("fight.los") and len(fresh) >= 2 and self.core is not None:
+            g = self._los_goal(me, pos, [h.pos_at(tt) for h in fresh], zone, walk)
+            if g is not None:
+                return g
 
         # 4) split the hunters
         if tuning.get("pacing.split") and len(fresh) >= 2:

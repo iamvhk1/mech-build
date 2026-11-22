@@ -91,6 +91,24 @@ class Strategy:
         if self.hidden((x, y), eyes, h):
             return (x, y)
         cur = self.zone.current() if self.zone.known else None
+        # retreat.away: only spots on the far side from the hunters' centre (pull the pack behind us,
+        # don't run into a pincer); falls back to any hidden spot if none is found
+        away = None
+        if tuning.get("retreat.away"):
+            t = self.threats.t
+            near = [hh.pos_at(t) for hh in hunters if math.dist(hh.pos_at(t)[:2], (x, y)) <= 100.0]
+            if near:
+                cx = sum(p[0] for p in near) / len(near)
+                cy = sum(p[1] for p in near) / len(near)
+                if math.hypot(x - cx, y - cy) > 1e-6:
+                    away = (x - cx, y - cy)
+        for side in ((away, None) if away is not None else (None,)):
+            best = self._hide_search(x, y, r, h, eyes, cur, side)
+            if best is not None:
+                return best
+        return None
+
+    def _hide_search(self, x, y, r, h, eyes, cur, away) -> Optional[Tuple[float, float]]:
         best, best_s = None, math.inf
         for rad in HIDE_RADII:
             for k in range(HIDE_DIRS):
@@ -100,6 +118,8 @@ class Strategy:
                     continue
                 if cur is not None and self.zone.depth(cur, q) < ZONE_MARGIN_M:
                     continue
+                if away is not None and (q[0] - x) * away[0] + (q[1] - y) * away[1] < 0:
+                    continue  # toward the hunters' side
                 if not self.hidden(q, eyes, h):
                     continue
                 near = min(math.dist(q, e[:2]) for e in eyes)

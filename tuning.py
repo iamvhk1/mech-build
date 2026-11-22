@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "loot_more"
+ACTIVE = "package"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -35,6 +35,7 @@ DEFAULTS = {
     "retreat.hold_fire": True,      # hold fire while retreating (regen needs no damage dealt)
     "retreat.cornered_m": 25.0,     # ...but fight back this close
     "retreat.finish_hp": 0.15,      # ...or finish a target this low
+    "retreat.away": False,          # R1: hide spots only on the far side from the hunters' centre
     "retreat.many_n": None,         # S1: also retreat with this many hunters within 100 m...
     "retreat.many_hp": 0.70,        # ...when below this HP fraction
     "heal.lull_hp": None,           # S2: below this HP with no hunter around, stop and heal to 95%
@@ -51,6 +52,7 @@ DEFAULTS = {
     "pacing.split": True,
     "pacing.loot_more": False,      # E3: loot every recent kill (30 s), and close cubes even while retreating
     "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
+    "fight.los": False,             # R2: with 2+ hunters, step to where the fewest can see us (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
     "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
@@ -294,6 +296,41 @@ PRESETS = {
                   "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
                   "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
                   "early.drones": True, "pacing.loot_more": True},
+    # U2: loot_more + durable upgrade order (plating x3, armor x3, gun / lightning damage, nanites last)
+    "durable": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable"},
+    # F1 package: loot_more (E3) + durable upgrades + anti-centroid retreat + line-of-sight steering
+    "package": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True, "fight.los": True},
+    # R1: loot_more + anti-centroid hide spots
+    "away": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "retreat.away": True},
+    # R2: loot_more + line-of-sight steering with 2+ hunters
+    "los": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "fight.los": True},
+    # R1 + R2
+    "away_los": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "retreat.away": True, "fight.los": True},
     # S2: loot_more + heal in lulls (below 75% HP with no hunter within 100 m: regenerate to 95%)
     "lull": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
