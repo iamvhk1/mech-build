@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mech Royale - 2D Strategy Visualizer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Top Bar -->
+    <header id="topBar">
+      <div class="logo-group">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">
+          <span class="brand">MECH ROYALE</span>
+          <span class="sub-brand">2D STRATEGY VISUALIZER</span>
+        </div>
+      </div>
+
+      <div class="replay-selector-group">
+        <label for="replaySelect">MATCH:</label>
+        <select id="replaySelect"></select>
+        <button id="btnNewSim" class="btn btn-primary" title="Run new squad simulation">+ Simulate Match</button>
+      </div>
+
+      <div class="match-meta-group">
+        <div id="modePill" class="pill pill-mode">PRACTICE</div>
+        <div id="presetPill" class="pill pill-preset">PRESET: BEST</div>
+        <div id="killsPill" class="pill pill-kills">0 KILLS</div>
+        <div id="cubesPill" class="pill pill-cubes">0 CUBES</div>
+      </div>
+
+      <div class="top-actions">
+        <button id="btnFollow" class="btn btn-toggle active" title="Lock camera on our mech [F]">Follow Bot</button>
+        <button id="btnResetView" class="btn" title="Reset Camera View [R]">Reset View</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div id="workspace">
+      <!-- 2D Canvas Container -->
+      <div id="viewportContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- Canvas Floating Overlay -->
+        <div id="canvasOverlay">
+          <div id="coordDisplay">X: 0.0 | Y: 0.0 | Zoom: 1.0x</div>
+          <div id="stateBanner" class="state-banner">IDLE</div>
+        </div>
+
+        <!-- Tooltip for entity hover -->
+        <div id="inspectTooltip" class="tooltip hidden"></div>
+
+        <!-- Simulation Modal -->
+        <div id="simModal" class="modal hidden">
+          <div class="modal-content">
+            <h3>Run Squad Simulation</h3>
+            <p>Simulate a full 48-match seed against the 15-bot house squad.</p>
+            <div class="form-row">
+              <label for="simSeed">Match Seed:</label>
+              <input type="number" id="simSeed" value="42" min="1" max="999999">
+            </div>
+            <div class="form-row">
+              <label for="simPreset">Tuning Preset:</label>
+              <select id="simPreset">
+                <option value="best" selected>best (3.48/4.05 baseline)</option>
+                <option value="press">press (close with lightning)</option>
+                <option value="arm">arm (early lightning reach)</option>
+                <option value="laser">laser (laser aim fix & fallback)</option>
+                <option value="p3">p3 (Phase 3 baseline)</option>
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button id="btnCancelSim" class="btn">Cancel</button>
+              <button id="btnExecuteSim" class="btn btn-primary">Start Simulation</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Strategy HUD Sidebar -->
+      <aside id="sidebar">
+        <!-- Strategy & State Card -->
+        <div class="card card-state">
+          <div class="card-title">DECISION & STRATEGY</div>
+          <div class="state-row">
+            <span class="label">STATE:</span>
+            <span id="botState" class="badge badge-state">ROTATE</span>
+          </div>
+          <div class="state-row">
+            <span class="label">SUB-MODE:</span>
+            <span id="botSubMode" class="badge badge-sub">-</span>
+          </div>
+          <div class="reasoning-box">
+            <div class="reasoning-label">REASON (WHY):</div>
+            <div id="botWhy" class="reasoning-text">Rotating into safe covered position inside next circle</div>
+          </div>
+        </div>
+
+        <!-- Vitals Card -->
+        <div class="card">
+          <div class="card-title">HERO MECH VITALS</div>
+          <div class="bar-group">
+            <div class="bar-header">
+              <span>HEALTH (HP)</span>
+              <span id="hpText">1000 / 1000 (100%)</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div id="hpBar" class="progress-bar-fill fill-hp" style="width: 100%"></div>
+            </div>
+          </div>
+
+          <div class="bar-group">
+            <div class="bar-header">
+              <span>ENERGY</span>
+              <span id="energyText">100 / 100</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div id="energyBar" class="progress-bar-fill fill-energy" style="width: 100%"></div>
+              <!-- Energy threshold marker at 20 & 35 -->
+              <div class="marker marker-20" title="Lightning Reserve (20)"></div>
+              <div class="marker marker-35" title="Press Threshold (35)"></div>
+            </div>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-box">
+              <span class="stat-label">CUBES</span>
+              <span id="statCubes" class="stat-val stat-purple">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">DMG BOOST</span>
+              <span id="statDmgBoost" class="stat-val">+0%</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">STRAFING</span>
+              <span id="statStrafe" class="stat-val">OFF</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">SPEED</span>
+              <span id="statSpeed" class="stat-val">11.7 m/s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weapon Loadout Card -->
+        <div class="card">
+          <div class="card-title">WEAPON LOADOUT</div>
+          <div class="weapon-slot">
+            <div class="slot-header">
+              <span class="slot-badge">SLOT 0</span>
+              <span class="weapon-name">GUN (KINETIC)</span>
+            </div>
+            <div class="slot-meta">
+              <span id="gunAmmo">AMMO: 12 / 12</span>
+              <span id="gunStatus">READY</span>
+            </div>
+          </div>
+
+          <div class="weapon-slot">
+            <div class="slot-header">
+              <span class="slot-badge slot-aux">SLOT 1</span>
+              <span id="auxWeaponName" class="weapon-name">EMPTY</span>
+            </div>
+            <div class="slot-meta">
+              <span id="auxWeaponStats">DPS: - | RANGE: -</span>
+              <span id="auxWeaponStatus">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zone & Circles Card -->
+        <div class="card">
+          <div class="card-title">ZONE & ARENA</div>
+          <div class="stat-grid">
+            <div class="stat-box">
+              <span class="stat-label">CURRENT RADIUS</span>
+              <span id="zoneCurRadius" class="stat-val">560 m</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">NEXT RADIUS</span>
+              <span id="zoneNextRadius" class="stat-val">380 m</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">SHRINK STATUS</span>
+              <span id="zoneShrinkStatus" class="stat-val">HOLDING</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">ZONE DPS</span>
+              <span id="zoneDps" class="stat-val">0 / s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Debug Strings Card -->
+        <div class="card">
+          <div class="card-title">ENGINE DIAGNOSTICS</div>
+          <div class="debug-row">
+            <span class="debug-key">COMBAT:</span>
+            <span id="debugCombat" class="debug-val">scan</span>
+          </div>
+          <div class="debug-row">
+            <span class="debug-key">NAV:</span>
+            <span id="debugNav" class="debug-val">destination ok</span>
+          </div>
+        </div>
+
+        <!-- Layer Toggles Card -->
+        <div class="card">
+          <div class="card-title">OVERLAYS & LAYERS</div>
+          <div class="toggle-list">
+            <label class="toggle-item"><input type="checkbox" id="layerMap" checked> Campus Map (Buildings & Streets)</label>
+            <label class="toggle-item"><input type="checkbox" id="layerZone" checked> Zone Circles (Current & Next)</label>
+            <label class="toggle-item"><input type="checkbox" id="layerPath" checked> Planned A* Path & Goal</label>
+            <label class="toggle-item"><input type="checkbox" id="layerEngage" checked> 60m Engagement Circle</label>
+            <label class="toggle-item"><input type="checkbox" id="layerLightning" checked> 45m Lightning Cone</label>
+            <label class="toggle-item"><input type="checkbox" id="layerSafe" checked> 80m Drop Safe Radius</label>
+            <label class="toggle-item"><input type="checkbox" id="layerHunters" checked> Enemy Hunter Sightlines</label>
+            <label class="toggle-item"><input type="checkbox" id="layerDrops" checked> Supply Drops & Ring</label>
+            <label class="toggle-item"><input type="checkbox" id="layerEconomy" checked> Crates & Cubes</label>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Bottom Playback Control Bar -->
+    <footer id="bottomBar">
+      <div class="playback-buttons">
+        <button id="btnPrevTick" class="ctrl-btn" title="Step Back 1 Tick [Left Arrow]">⏮</button>
+        <button id="btnPlayPause" class="ctrl-btn btn-play" title="Play / Pause [Space]">▶</button>
+        <button id="btnNextTick" class="ctrl-btn" title="Step Forward 1 Tick [Right Arrow]">⏭</button>
+      </div>
+
+      <div class="speed-selector">
+        <button class="btn-speed" data-speed="0.25">0.25x</button>
+        <button class="btn-speed" data-speed="0.5">0.5x</button>
+        <button class="btn-speed active" data-speed="1.0">1.0x</button>
+        <button class="btn-speed" data-speed="2.0">2.0x</button>
+        <button class="btn-speed" data-speed="5.0">5.0x</button>
+      </div>
+
+      <div class="timeline-container">
+        <div id="timelineEvents" class="timeline-events-layer"></div>
+        <input type="range" id="timelineSlider" min="0" max="100" value="0" step="1">
+      </div>
+
+      <div class="time-display">
+        <span id="timeCurrent">00:00.0</span> / <span id="timeTotal">00:00.0</span>
+        <span id="tickDisplay" class="tick-badge">TICK: 0</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
