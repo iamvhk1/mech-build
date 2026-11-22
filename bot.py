@@ -303,7 +303,7 @@ class Bot:
                 if fg is not None:
                     goal, why, farming = fg, f"farm {self.farmer.mode}", True
         self.nav.allow_roofs = dec.roofs or (pickup is not None and self.armer.target_roof
-                                             and pickup.get("id") == self.armer.target_id)
+                                             and pickup.get("id") == self.armer.target_id)             or (farming and self.farmer.target_roof)
         self.nav.set_goal(goal)
 
         # ---- legs (+ strafing in a fight: only in the normal state, zone not urgent, not evading)

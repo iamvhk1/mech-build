@@ -35,6 +35,8 @@ BANK_USE_M = 25.0
 
 
 class Farmer:
+    target_roof = False  # the current farm goal is up on a roof (navigation must allow roof jumps)
+
     def __init__(self, core, cfg: dict):
         self.core = core
         self.cfg = cfg
@@ -174,6 +176,9 @@ class Farmer:
         """Where to walk for farming this decision, or None. Sets self.target (crate to shoot)."""
         self.mode = ""
         me = obs["self"]
+        self.target_roof = False
+        ru = tuning.get("farm.roof_until")
+        roof_ok = ru is not None and float(obs["t"]) < float(ru) and float(me.get("energy", 0.0)) >= 60.0
         if not self.safe(me, hunters, threats, has_target):
             self.target = None
             return None
@@ -193,12 +198,13 @@ class Farmer:
         banking = bool(tuning.get("farm.bank")) and hp_frac >= BANK_HP
         if (tuning.get("farm.crates") or tuning.get("farm.cubes")) and not banking:
             cubes = [c for c in self.cubes.values()
-                     if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and self._street("cube", c)]
+                     if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and (self._street("cube", c) or roof_ok)]
             if not tuning.get("farm.cubes"):
                 cubes = [c for c in cubes if self._from_our_crate(c)]
             if cubes:
                 c = min(cubes, key=lambda c: math.dist(c.pos[:2], pos[:2]))
                 self.mode = f"cube {c.id}"
+                self.target_roof = not self._street("cube", c)
                 return (c.pos[0], c.pos[1])
         # 2) a drone to shoot (C2)
         if tuning.get("farm.drones") and self.safe_for_drone(me, hunters, threats, has_target):
@@ -223,12 +229,13 @@ class Farmer:
         if tuning.get("farm.crates"):
             if self.target is None or self.target.id not in self.crates:
                 crates = [c for c in self.crates.values()
-                          if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and self._street("crate", c)
+                          if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and (self._street("crate", c) or roof_ok)
                           if crate_lanes is None or getattr(self, "pacer", None) is None
                           or self.pacer._open_lanes(c.pos, 9.0) <= int(crate_lanes)]
                 self.target = min(crates, key=lambda c: math.dist(c.pos[:2], pos[:2])) if crates else None
             if self.target is not None:
                 self.mode = f"crate {self.target.id}"
+                self.target_roof = not self._street("crate", self.target)
                 self.crate_spots[self.target.id] = (self.target.pos[0], self.target.pos[1])
                 # close enough with a clear shot: stand and shoot (shots spawn 3 m out along the
                 # aim, so walking right up to the crate would make them spawn past it)

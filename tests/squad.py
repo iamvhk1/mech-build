@@ -174,7 +174,12 @@ class Match:
         cc = self.cfg["crates"]
         for i, (x, y) in enumerate(self._spawns(int(cc.get("count", 36)), sep0=25.0)):
             if self.rng.random() < cc.get("roof_fraction", 0.25):
-                continue  # roof crates: never farmed (farm.py skips roofs), so leave them out
+                for _ in range(30):  # a nearby roof cell, like the real game
+                    q = self.core.nearest_walkable(x + self.rng.uniform(-60, 60), y + self.rng.uniform(-60, 60),
+                                                   self.m["radius"], False)
+                    if q is not None and 6.0 <= self.core.floor_z(*q) - self.core.ground_z(*q) <= 20.0:
+                        x, y = q
+                        break
             self.crate_items[1000 + i] = {"pos": [x, y, self.core.floor_z(x, y)], "hp": float(cc["hp"])}
         self.pickups = {}
         kinds = ["mortar", "laser", "lightning"]
