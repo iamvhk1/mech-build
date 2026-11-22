@@ -262,6 +262,16 @@ class Strategy:
         elif self.state == RETREAT and healed and not held:
             self._set(ROTATE, t)
 
+        if self.state == RETREAT and not zone_urgent and tuning.get("retreat.roof") and self.roofs is not None                 and float(me.get("energy", 0.0)) >= 45.0:
+            # rooftop reset: retreat onto a climbable roof within 45 m and hold its middle (ground bots
+            # close below lose the line of fire)
+            st = me.get("stats") or {}
+            v0 = float(st.get("jump_speed", 11.0))
+            cap = v0 * v0 / (2 * float(st.get("gravity", 22.0))) +                 0.75 * 85.0 * float(st.get("max_rise_speed", 10.0)) / max(1e-6, float(st.get("jet_drain", 15.0)))
+            roof = self.roofs.choose(self.zone, pos, cap)
+            if roof is not None and math.dist(roof.core, pos[:2]) <= 45.0:
+                return Decision(RETREAT, goal=roof.core, retreat=hold_fire, roofs=True,
+                                why=f"retreat roof {roof.height:.0f}m")
         if self.state == RETREAT and not zone_urgent:
             if self.hide is None or t - self.hide_t >= HIDE_REFRESH_S:
                 spot = self.find_hide(me, hunters)

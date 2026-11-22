@@ -61,7 +61,7 @@ class Bot:
         self.combat = Combat(self.cfg, self.core)
         self.threats = ThreatTracker()
         self.roofs = RoofIndex(self.core, float(self.cfg["mech"]["radius"]), float(self.cfg["mech"]["step_up"])) \
-            if (self.core is not None and tuning.get("roof.enabled")) else None
+            if (self.core is not None and (tuning.get("roof.enabled") or tuning.get("retreat.roof"))) else None
         self.strategy = Strategy(self.cfg, self.core, self.zone, self.threats, self.roofs)
         self.fighter = CoverFighter(self.core, self.cfg)
         self.strafer = Strafer(self.core, self.cfg, int(hello.get("seed", 0)))
