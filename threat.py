@@ -43,6 +43,7 @@ class ThreatTracker:
         self.tracks: Dict[int, Track] = {}
         self.t = 0.0
         self.damage: List[Tuple[float, float]] = []  # (t, amount) damage we took
+        self.aggro_order: List[int] = []  # mech ids in the order they first hit us (practice: weakest first)
 
     def update(self, obs: dict) -> None:
         t = float(obs["t"])
@@ -68,6 +69,8 @@ class ThreatTracker:
                 if by is not None and int(by) < 100:  # mechs are ids 0-15
                     tr = self.tracks.setdefault(int(by), Track(int(by)))
                     tr.t_hit = t
+                    if int(by) not in self.aggro_order:
+                        self.aggro_order.append(int(by))
                     if tr.t_seen < t - 1.0 and e.get("bearing") is not None:
                         # unseen attacker: place it roughly along the bearing
                         b = float(e["bearing"])
@@ -78,6 +81,12 @@ class ThreatTracker:
                 self.tracks.pop(int(e.get("target", -1)), None)
         self.damage = [d for d in self.damage if t - d[0] < 10.0]
         self.tracks = {k: v for k, v in self.tracks.items() if t - max(v.t_seen, v.t_hit) < FORGET_S}
+
+    def tier_mult(self, mid: int) -> float:
+        """Practice squad sends weakest first: the n-th bot to hit us is roughly tier n // 4
+        (4 easy, 4 medium, 4 hard, 3 expert). Unknown attackers count as the next one."""
+        n = self.aggro_order.index(mid) if mid in self.aggro_order else len(self.aggro_order)
+        return (0.4, 0.8, 1.2, 1.6)[min(3, n // 4)]
 
     def damage_taken(self, window: float) -> float:
         return sum(a for (tt, a) in self.damage if self.t - tt <= window)

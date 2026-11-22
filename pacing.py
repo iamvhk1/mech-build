@@ -154,6 +154,8 @@ class Pacer:
         self.mode = f"choke {best_s:.1f}"
         return self.choke
 
+    _threats = None  # set by Bot (mpc.tier needs the aggro order)
+
     def _mpc_goal(self, me: dict, pos, hunters, tt: float, zone, walk: float, t: float, retreating: bool = False):
         if getattr(self, "_mpc_t", -1e9) > t - MPC_REPLAN_S and getattr(self, "_mpc_goal_xy", None) is not None:
             self.mode = "mpc hold"
@@ -173,7 +175,10 @@ class Pacer:
             v = getattr(hh, "vel", [0.0, 0.0, 0.0])
             ws = list(getattr(hh, "weapons", []) or ["gun"])
             dps = 100.0 + (240.0 if "lightning" in ws else 0.0) + (130.0 if "laser" in ws else 0.0)
-            enemies.append((p, v, dps, "lightning" in ws))
+            mult = 1.0
+            if tuning.get("mpc.tier") and self._threats is not None:
+                mult = self._threats.tier_mult(hh.id)
+            enemies.append((p, v, dps, "lightning" in ws, mult))
         nearest = min(enemies, key=lambda e: math.dist(e[0][:2], pos[:2]))
         chase = bool(tuning.get("mpc.chase"))
         w_taken = float(tuning.get("mpc.w_taken")) if not retreating else float(tuning.get("mpc.w_taken_retreat"))
@@ -186,7 +191,7 @@ class Pacer:
                 q = (pos[0] + (end[0] - pos[0]) * f, pos[1] + (end[1] - pos[1]) * f)
                 z = self.core.floor_z(q[0], q[1])
                 taken = dealt = 0.0
-                for (p, v, dps, light) in enemies:
+                for (p, v, dps, light, mult) in enemies:
                     if chase:
                         dx, dy = q[0] - p[0], q[1] - p[1]
                         dn = math.hypot(dx, dy)
@@ -198,8 +203,8 @@ class Pacer:
                     d = math.dist(ep, q)
                     sees = self.core.shot_los((ep[0], ep[1], ez + eye), (q[0], q[1], z + h * 0.5)) >= 1.0
                     if sees:
-                        taken += (100.0 + (240.0 if (light and d <= light_rng) else 0.0)
-                                  + (dps - 100.0 - (240.0 if light else 0.0))) * (0.9 if d <= 60 else 0.6)
+                        taken += mult * (100.0 + (240.0 if (light and d <= light_rng) else 0.0)
+                                         + (dps - 100.0 - (240.0 if light else 0.0))) * (0.9 if d <= 60 else 0.6)
                         dealt += 100.0 * (0.9 if d <= 60 else 0.6) + (240.0 if (have_light and d <= light_rng) else 0.0)
                 total += w_dealt * dealt - w_taken * taken
             return total
