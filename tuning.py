@@ -64,6 +64,10 @@ DEFAULTS = {
     "mpc.min_hunters": 2,           # MPC with at least this many fresh hunters within 110 m
     "fight.narrow": False,          # N1: after narrow.after_kills kills, base at the spot with the fewest open lanes
     "narrow.after_kills": 3,
+    "narrow.radius": 60.0,
+    "narrow.hold": False,           # at the narrow base, MPC only adjusts within 6 m (hold the gully)          # how far to look for the narrow base
+    "mpc.w_lanes": 0.0,             # MPC: penalty per open approach lane at a move's end (prefer gullies)
+    "farm.drone_use_safe_m": False, # drone farming: clear radius = farm.safe_m (60 m early) instead of 90 m
     "mpc.tier": False,              # M3: weight each enemy's predicted damage by its tier (aggro order)
     "mpc.chase": False,             # M3: predict enemies closing on us (house bots hunt) instead of drifting
     "mpc.retreat": False,           # M4: while retreating, the escape move with the least predicted damage
@@ -420,6 +424,42 @@ PRESETS = {
               "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
               "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
               "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2, "arm.roof_until": 100.0},
+    "hold": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
+              "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
+              "arm.roof_until": 100.0, "narrow.hold": True},
+    "defensive": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
+              "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
+              "arm.roof_until": 100.0, "mpc.w_taken": 2.0},
+    "gully": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
+              "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
+              "arm.roof_until": 100.0, "mpc.w_lanes": 30.0, "narrow.radius": 95.0, "farm.drone_use_safe_m": True},
+    "gully_mpc": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
+              "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
+              "arm.roof_until": 100.0, "mpc.w_lanes": 30.0},
     "mpc_bank": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,

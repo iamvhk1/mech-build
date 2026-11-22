@@ -123,8 +123,9 @@ class Farmer:
         if any(math.dist(h.pos_at(threats.t)[:2], me["pos"][:2]) <= safe_m for h in hunters):
             return False
         t = threats.t
+        clear = 90.0 if not tuning.get("farm.drone_use_safe_m") else float(safe_m)
         for tr in threats.tracks.values():
-            if math.dist(tr.pos_at(t)[:2], me["pos"][:2]) <= 90.0:
+            if math.dist(tr.pos_at(t)[:2], me["pos"][:2]) <= clear:
                 return False
         return True
 

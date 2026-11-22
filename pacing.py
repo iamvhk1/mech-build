@@ -176,7 +176,8 @@ class Pacer:
         h = float(st.get("height", 9.0))
         pos = me["pos"]
         best, best_s = None, math.inf
-        for rad in (0.0, 10.0, 20.0, 35.0, 50.0, 60.0):
+        reach = float(tuning.get("narrow.radius"))
+        for rad in [x for x in (0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 80.0, 95.0) if x <= reach]:
             for k in range(1 if rad == 0 else 16):
                 a = 2 * math.pi * k / 16
                 q = (pos[0], pos[1]) if rad == 0 else \
@@ -249,6 +250,8 @@ class Pacer:
         best, best_s = None, -math.inf
         cands = [(pos[0], pos[1])]
         reach = speed * MPC_HORIZON_S
+        if tuning.get("narrow.hold") and self.narrow is not None and math.dist(self.narrow, pos[:2]) <= 10.0:
+            reach = 6.0  # at the narrow base: hold the gully, let them come through its lanes
         for k in range(12):
             a = 2 * math.pi * k / 12
             q = self.core.nearest_walkable(pos[0] + reach * math.cos(a), pos[1] + reach * math.sin(a), r, False)
@@ -259,8 +262,11 @@ class Pacer:
             if not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
                 continue
             cands.append((q[0], q[1]))
+        w_lanes = float(tuning.get("mpc.w_lanes"))
         for c in cands:
             s = score_path(c) - 0.02 * math.dist(c, nearest[0][:2])
+            if w_lanes:
+                s -= w_lanes * self._open_lanes(c, h)  # prefer ending in a gully: fewer open approach lanes
             if s > best_s:
                 best, best_s = c, s
         self._mpc_t, self._mpc_goal_xy = t, best
