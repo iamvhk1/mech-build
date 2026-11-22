@@ -33,6 +33,10 @@ PRESS_FROM_M = 32.0       # ...when it is farther than this
 PRESS_MAX_M = 90.0        # ...and not farther than this
 PRESS_MIN_HP = 0.50
 PRESS_MIN_ENERGY = 35.0   # ~4 s of arcs (3 energy per 0.25 s shot)
+CHOKE_RANGE_M = 150.0     # choke: with 2+ known hunters this close...
+CHOKE_RINGS = (0.0, 6.0, 12.0, 20.0)   # ...look for a fighting spot this far away
+CHOKE_LANE_M = 50.0       # a lane is open if a bot this far out in that direction could shoot us
+CHOKE_HOLD_S = 3.0        # re-pick at most this often
 LOS_STEP_M = 7.0          # los steering: candidate spots this far away in 16 directions
 LOS_RANGE_M = 110.0       # ...counting fresh hunters this close
 HUNT_MIN_HP = 0.70        # hunt: go after the only mech we know of (the squad sends one at a time early)
@@ -48,6 +52,9 @@ class Pacer:
         self.kill_pos: Optional[Sequence[float]] = None
         self.kills: List[Tuple[float, Sequence[float]]] = []  # (t, where) of recent kills
         self.mode = ""
+        self.lanes: Dict[Tuple[int, int], int] = {}   # static: open approach lanes per 2 m cell
+        self.choke: Optional[Tuple[float, float]] = None
+        self.choke_t = -1e9
 
     def observe(self, obs: dict) -> None:
         """Call before the threat tracker forgets a killed mech: remembers where mechs were."""
@@ -98,6 +105,51 @@ class Pacer:
             return None
         self.mode = f"loot {best.id}"
         return (best.pos[0], best.pos[1])
+
+    def _open_lanes(self, xy, h: float) -> int:
+        """How many of 16 directions a bot 50 m out could shoot this spot from (map only, cached)."""
+        key = (int(round(xy[0] / 2.0)), int(round(xy[1] / 2.0)))
+        if key not in self.lanes:
+            z = self.core.floor_z(xy[0], xy[1])
+            eye = float(self.cfg["mech"].get("eye_height", 8.0))
+            n = 0
+            for k in range(16):
+                a = 2 * math.pi * k / 16
+                ex, ey = xy[0] + CHOKE_LANE_M * math.cos(a), xy[1] + CHOKE_LANE_M * math.sin(a)
+                if self.core.shot_los((ex, ey, self.core.floor_z(ex, ey) + eye), (xy[0], xy[1], z + h * 0.5)) >= 1.0:
+                    n += 1
+            self.lanes[key] = n
+        return self.lanes[key]
+
+    def _choke_goal(self, me: dict, pos, hunter_pos, zone, walk: float, t: float) -> Optional[Tuple[float, float]]:
+        if self.choke is not None and t - self.choke_t < CHOKE_HOLD_S:
+            self.mode = "choke hold"
+            return self.choke
+        st = me.get("stats") or {}
+        r = float(st.get("radius", 2.5))
+        h = float(st.get("height", 9.0))
+        eye = float(self.cfg["mech"].get("eye_height", 8.0))
+        eyes = [(p[0], p[1], self.core.floor_z(p[0], p[1]) + eye) for p in hunter_pos]
+        best, best_s = None, math.inf
+        for rad in CHOKE_RINGS:
+            for k in range(1 if rad == 0 else 8):
+                a = 2 * math.pi * k / 8
+                q = (pos[0], pos[1]) if rad == 0 else \
+                    self.core.nearest_walkable(pos[0] + rad * math.cos(a), pos[1] + rad * math.sin(a), r, False)
+                if q is None or math.dist(q, pos[:2]) > rad + 3.0:
+                    continue
+                if rad > 0 and not self.core.segment_walkable((pos[0], pos[1]), q, r * 0.9):
+                    continue
+                if not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
+                    continue
+                s = 3.0 * self._exposure(q, eyes, h) + 0.5 * self._open_lanes(q, h) + 0.05 * math.dist(q, pos[:2])
+                if s < best_s:
+                    best, best_s = q, s
+        if best is None:
+            return None
+        self.choke, self.choke_t = (best[0], best[1]), t
+        self.mode = f"choke {best_s:.1f}"
+        return self.choke
 
     def _exposure(self, xy, eyes, h: float) -> int:
         z = self.core.floor_z(xy[0], xy[1])
@@ -216,7 +268,17 @@ class Pacer:
                         self.mode = f"hunt {tr.id} {d:.0f}m"
                         return goal
 
-        # 4) line-of-sight steering: with 2+ hunters able to shoot us, step to the nearby spot where the
+        # 4) chokepoint: with 2+ known hunters around, fight from the nearby spot with the fewest open
+        # approach lanes (and the fewest current hunters able to shoot it), so they come one lane at a time
+        if tuning.get("fight.choke") and self.core is not None and hp >= 0.25:
+            near = [tr.pos_at(tt) for tr in getattr(threats, "tracks", {}).values()
+                    if math.dist(tr.pos_at(tt)[:2], pos[:2]) <= CHOKE_RANGE_M]
+            if len(near) >= 2:
+                g = self._choke_goal(me, pos, near, zone, walk, t)
+                if g is not None:
+                    return g
+
+        # 4b) line-of-sight steering: with 2+ hunters able to shoot us, step to the nearby spot where the
         # fewest can (ideally one: our lightning works on it while a building blocks the rest)
         if tuning.get("fight.los") and len(fresh) >= 2 and self.core is not None:
             g = self._los_goal(me, pos, [h.pos_at(tt) for h in fresh], zone, walk)

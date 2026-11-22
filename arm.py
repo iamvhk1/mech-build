@@ -78,8 +78,11 @@ class Armer:
             return None
         max_d = float(tuning.get("arm.max_dist"))
         best, bd = None, max_d
+        first = "laser" if tuning.get("arm.prefer_laser") else "lightning"
+        if first == "laser" and kind1 == "laser":
+            return None  # already hold the preferred weapon
         for p in self.known.values():
-            if p["kind"] != "lightning":
+            if p["kind"] != first:
                 continue
             d = math.dist(p["pos"][:2], pos[:2])
             limit = bd if p["id"] != self.target_id else max(bd, max_d * KEEP_MULT)
