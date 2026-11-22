@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "pacing"
+ACTIVE = "probe_loot"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -56,6 +56,7 @@ DEFAULTS = {
     # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
     # the score reads out the place points earned before it
     "probe.idle_at": None,
+    "probe.idle_on_pace": "",       # "loot" / "split": stand still from the first time that pacing rule fires
     # late-match caution (practice): from this match time on, apply LATE_OVERLAY (None = never)
     "late.at": None,
 }
@@ -186,6 +187,16 @@ PRESETS = {
                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
                "fight.pacing": True},
+    # C2 diagnostics: pacing scored 3.46, an exact tie with best. Does each rule ever fire in practice?
+    # Each plays `pacing` and stands still from the first time its rule fires (3.46 = never fires).
+    "probe_loot": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                   "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                   "fight.pacing": True, "probe.idle_on_pace": "loot"},
+    "probe_split": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                    "fight.pacing": True, "probe.idle_on_pace": "split"},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

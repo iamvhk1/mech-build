@@ -67,6 +67,7 @@ class Bot:
         self.farmer = Farmer(self.core, self.cfg)
         self.dropper = DropContester(self.core, self.cfg)
         self.pacer = Pacer(self.core, self.cfg)
+        self.probe_idle = False  # diagnostics: set by probe.idle_on_pace
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
         tuning.set_late(False)
@@ -185,7 +186,7 @@ class Bot:
         x, y, z = me["pos"]
         t = float(obs["t"])
         idle_at = tuning.get("probe.idle_at")
-        if idle_at is not None and t >= float(idle_at):
+        if (idle_at is not None and t >= float(idle_at)) or self.probe_idle:
             return {"tick": obs["tick"]}  # diagnostic probe: stand still, hold fire (no more points)
         st = me.get("stats") or {}
         act: mf.Action = {"tick": obs["tick"]}
@@ -243,6 +244,8 @@ class Bot:
                 dg = self.drop_goal(obs, targets)
             if pg is not None:
                 goal, why = pg, f"pace {self.pacer.mode}"
+                if tuning.get("probe.idle_on_pace") and self.pacer.mode.startswith(tuning.get("probe.idle_on_pace")):
+                    self.probe_idle = True  # diagnostics: from the next decision on, stand still
             elif dg is not None:
                 goal, why = dg, f"drop {self.dropper.mode}"
             elif tuning.get("farm.crates") or tuning.get("farm.cubes") or tuning.get("farm.drones"):
