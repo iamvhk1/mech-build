@@ -255,6 +255,10 @@ class Bot:
         farming = False
         goal = self.destination(me, t)
         why = dec.why
+        if tuning.get("fight.narrow") and dec.state == "rotate" and not zone_urgent:
+            ns = self.pacer.narrow_spot(me, self.zone, walk, t)
+            if ns is not None:
+                goal, why = ns, "narrow base"  # after N kills: stand where few lanes reach us
         threat = self.combat.laser_threat(targets, [x, y, z + float(st.get("height", 9.0)) / 2])
         if dec.state != "burn" and threat is not None and t >= self.evade_until:
             cover = self.combat.cover_from(threat, me)

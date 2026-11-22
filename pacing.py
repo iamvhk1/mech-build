@@ -54,6 +54,10 @@ class Pacer:
         self.kill_t = -1e9
         self.kill_pos: Optional[Sequence[float]] = None
         self.kills: List[Tuple[float, Sequence[float]]] = []  # (t, where) of recent kills
+        self.kill_count = 0
+        self.narrow: Optional[Tuple[float, float]] = None
+        self.narrow_t = -1e9
+        self.narrow_key = None
         self.mode = ""
         self.lanes: Dict[Tuple[int, int], int] = {}   # static: open approach lanes per 2 m cell
         self.choke: Optional[Tuple[float, float]] = None
@@ -68,6 +72,7 @@ class Pacer:
         for e in obs.get("events") or []:
             if e.get("type") == "kill":
                 p = self.last_seen.get(int(e.get("target", -1)))
+                self.kill_count += 1
                 if p is not None:
                     self.kill_t, self.kill_pos = t, p
                     self.kills.append((t, p))
@@ -155,6 +160,38 @@ class Pacer:
         return self.choke
 
     _threats = None  # set by Bot (mpc.tier needs the aggro order)
+
+    def narrow_spot(self, me: dict, zone, walk: float, t: float) -> Optional[Tuple[float, float]]:
+        """fight.narrow: after N kills, a base with the fewest open approach lanes within 60 m (inside the
+        zone), so bots must come through few lanes instead of surrounding us. Re-picked every 8 s or
+        when the next zone circle changes."""
+        if self.core is None or self.kill_count < int(tuning.get("narrow.after_kills")):
+            return None
+        nxt = zone.next_circle() if zone is not None and getattr(zone, "known", False) else None
+        key = (round(nxt[0]), round(nxt[1]), round(nxt[2])) if nxt else None
+        if self.narrow is not None and t - self.narrow_t < 8.0 and key == self.narrow_key:
+            return self.narrow
+        st = me.get("stats") or {}
+        r = float(st.get("radius", 2.5))
+        h = float(st.get("height", 9.0))
+        pos = me["pos"]
+        best, best_s = None, math.inf
+        for rad in (0.0, 10.0, 20.0, 35.0, 50.0, 60.0):
+            for k in range(1 if rad == 0 else 16):
+                a = 2 * math.pi * k / 16
+                q = (pos[0], pos[1]) if rad == 0 else \
+                    self.core.nearest_walkable(pos[0] + rad * math.cos(a), pos[1] + rad * math.sin(a), r, True)
+                if q is None or math.dist(q, pos[:2]) > rad + 4.0:
+                    continue
+                if nxt is not None and math.hypot(q[0] - nxt[0], q[1] - nxt[1]) > nxt[2] - 15.0:
+                    continue  # stay well inside the next circle
+                if not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
+                    continue
+                s = self._open_lanes(q, h) + 0.03 * math.dist(q, pos[:2])
+                if s < best_s:
+                    best, best_s = (q[0], q[1]), s
+        self.narrow, self.narrow_t, self.narrow_key = best, t, key
+        return best
 
     def _mpc_goal(self, me: dict, pos, hunters, tt: float, zone, walk: float, t: float, retreating: bool = False):
         if getattr(self, "_mpc_t", -1e9) > t - MPC_REPLAN_S and getattr(self, "_mpc_goal_xy", None) is not None:
