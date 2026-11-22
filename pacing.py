@@ -223,9 +223,10 @@ class Pacer:
         return best
 
     def _mpc_goal(self, me: dict, pos, hunters, tt: float, zone, walk: float, t: float, retreating: bool = False):
-        if getattr(self, "_mpc_t", -1e9) > t - MPC_REPLAN_S and getattr(self, "_mpc_goal_xy", None) is not None:
+        ck = ("_mpc_t_r", "_mpc_goal_r") if (retreating and tuning.get("mpc.split_cache")) else ("_mpc_t", "_mpc_goal_xy")
+        if getattr(self, ck[0], -1e9) > t - MPC_REPLAN_S and getattr(self, ck[1], None) is not None:
             self.mode = "mpc hold"
-            return self._mpc_goal_xy
+            return getattr(self, ck[1])
         st = me.get("stats") or {}
         r = float(st.get("radius", 2.5))
         h = float(st.get("height", 9.0))
@@ -299,7 +300,8 @@ class Pacer:
                 s -= w_lanes * self._open_lanes(c, h)  # prefer ending in a gully: fewer open approach lanes
             if s > best_s:
                 best, best_s = c, s
-        self._mpc_t, self._mpc_goal_xy = t, best
+        setattr(self, ck[0], t)
+        setattr(self, ck[1], best)
         self.mode = f"mpc {best_s:.0f}"
         return best
 
@@ -423,7 +425,7 @@ class Pacer:
                 goal = (hp_[0] + ux * float(tuning.get("press.to_m")), hp_[1] + uy * float(tuning.get("press.to_m")))
                 if self.core is not None:
                     r = float((me.get("stats") or {}).get("radius", 2.5))
-                    q = self.core.nearest_walkable(goal[0], goal[1], r, False)
+                    q = self.core.nearest_walkable(goal[0], goal[1], r, bool(tuning.get("nav.ground_goals")))
                     goal = (q[0], q[1]) if q is not None else None
                 if goal is not None and self._zone_ok(zone, goal, pos, walk):
                     self.mode = f"press {h.id} {d:.0f}m"
@@ -452,7 +454,7 @@ class Pacer:
                     goal = (p[0] + ux * PRESS_TO_M, p[1] + uy * PRESS_TO_M)
                     if self.core is not None:
                         r = float((me.get("stats") or {}).get("radius", 2.5))
-                        q = self.core.nearest_walkable(goal[0], goal[1], r, False)
+                        q = self.core.nearest_walkable(goal[0], goal[1], r, bool(tuning.get("nav.ground_goals")))
                         goal = (q[0], q[1]) if q is not None else None
                     if goal is not None and self._zone_ok(zone, goal, pos, walk):
                         self.mode = f"hunt {tr.id} {d:.0f}m"
@@ -495,7 +497,7 @@ class Pacer:
             goal = (pos[0] + dx / n * SPLIT_STEP_M, pos[1] + dy / n * SPLIT_STEP_M)
             if self.core is not None:
                 r = float((me.get("stats") or {}).get("radius", 2.5))
-                q = self.core.nearest_walkable(goal[0], goal[1], r, False)
+                q = self.core.nearest_walkable(goal[0], goal[1], r, bool(tuning.get("nav.ground_goals")))
                 if q is None or math.dist(q, goal) > 8.0:
                     return None  # wall behind us: keep the normal plan
                 goal = (q[0], q[1])

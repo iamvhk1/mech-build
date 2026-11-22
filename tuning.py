@@ -28,8 +28,8 @@ DEFAULTS = {
     "engage.near_m": 60.0,          # shoot any mech this close
     "engage.low_hp": 0.35,          # ...or any target below this HP fraction
     "engage.any_in_range": False,   # True: shoot any visible mech in gun range
-    "lightning.reserve": 20.0,
-    "lightning.any_mech": False,    # H1: fire even if a different enemy mech is nearest in the cone      # energy kept for jumps (unless the target is within 20 m)
+    "lightning.reserve": 20.0,      # energy kept for jumps (unless the target is within 20 m)
+    "lightning.any_mech": False,    # H1: fire even if a different enemy mech is nearest in the cone
     # retreat-to-heal (Phase 4, E1)
     "retreat.enabled": True,
     "retreat.hp_enter": 0.55,       # retreat below this HP fraction
@@ -41,8 +41,8 @@ DEFAULTS = {
     "retreat.finish_hp": 0.15,      # ...or finish a target this low
     "retreat.away": False,          # R1: hide spots only on the far side from the hunters' centre
     "retreat.roof": False,          # R3: retreat onto a climbable roof within 45 m (energy >= 45)
-    "retreat.fresh_hide": False,
-    "retreat.flee": False,          # N7: retreating, nowhere hidden and still hit -> move ~30 m away from attackers    # N3: no hunter in sight -> stay and heal; drop hide spots chosen against gone hunters
+    "retreat.fresh_hide": False,    # N3: no hunter in sight -> stay and heal; drop hide spots chosen against gone hunters
+    "retreat.flee": False,          # N7: retreating, nowhere hidden and still hit -> move ~30 m away from attackers
     "retreat.fallback": False,      # G3: no fully hidden spot -> flee to the best partial cover (choke-like)
     "retreat.scaled": False,        # F2: retreat at 50% with 2 hunters within 75 m, 65% with 3+
     "retreat.many_n": None,         # S1: also retreat with this many hunters within 100 m...
@@ -58,7 +58,7 @@ DEFAULTS = {
     "fight.focus": False,           # B3: stay on one target, prefer quickest kills, finish wounded targets
     "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
     "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
-    "pacing.split": True,
+    "pacing.split": True,           # ...including the split rule (C2c tests loot alone)
     "pacing.loot_more": False,      # E3: loot every recent kill (30 s), and close cubes even while retreating
     "press.to_m": 25.0,             # press closes to this distance from a lone hunter
     "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
@@ -66,10 +66,10 @@ DEFAULTS = {
     "arm.prefer_laser": False,      # G2 check: go for a laser first instead of lightning
     "fight.finish": False,          # H3: a shootable enemy below 35% HP within 45 m comes first
     "fight.arc": False,             # H2: prefer targets that keep other attackers in our front 180 deg
-    "fight.mpc": False,
+    "fight.mpc": False,             # M1: with 2+ hunters, 1.2 s rollouts of 13 manoeuvres (pacing.py)
     "mpc.min_hunters": 2,           # MPC with at least this many fresh hunters within 110 m
     "fight.narrow": False,          # N1: after narrow.after_kills kills, base at the spot with the fewest open lanes
-    "narrow.after_kills": 3,
+    "narrow.after_kills": 3,        # ...kills before the narrow base applies
     "narrow.radius": 60.0,          # how far to look for the narrow base
     "narrow.max_lanes": None,       # N4: a narrow base must have at most this many open lanes (else none)
     "narrow.force": False,          # N5: 2+ mechs within 150 m and an open spot -> go to the nearest real choke
@@ -83,18 +83,18 @@ DEFAULTS = {
     "mpc.chase": False,             # M3: predict enemies closing on us (house bots hunt) instead of drifting
     "mpc.retreat": False,           # M4: while retreating, the escape move with the least predicted damage
     "mpc.w_taken": 1.2,             # score = dealt - w_taken * taken
-    "mpc.w_taken_retreat": 3.0,
-    "mpc.retreat_m": 110.0,         # retreat planning considers hunters within this distance (far shooters too)     # ...while retreating (dealt weighted 0.3)             # M1: with 2+ hunters, 1.2 s rollouts of 13 manoeuvres (pacing.py)
+    "mpc.w_taken_retreat": 3.0,     # ...while retreating (dealt weighted 0.3)
+    "mpc.retreat_m": 110.0,         # retreat planning considers hunters within this distance (far shooters too)
     "fight.los": False,             # R2: with 2+ hunters, step to where the fewest can see us (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
     "hunt.local": False,            # F2: hunt the nearest mech when every other known one is far behind it
     "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
-    "arm.max_dist": 200.0,
-    "arm.roof_until": None,
-    "farm.roof_until": None,        # N6: until this match time (energy >= 60), roof crates / cubes count too         # R4: until this match time (energy >= 60), roof lightnings count too
+    "arm.max_dist": 200.0,          # how far arm-up walks for a remembered lightning
+    "arm.roof_until": None,         # R4: until this match time (energy >= 60), roof lightnings count too
+    "farm.roof_until": None,        # N6: until this match time (energy >= 60), roof crates / cubes count too
     "arm.laser_after": None,        # D3: from this match time, take a laser if no lightning is within reach
-    "arm.safe_m": 50.0,             # ...only with no hunter this close           # ...including the split rule (C2c tests loot alone)
+    "arm.safe_m": 50.0,             # ...only with no hunter this close
     # cube economy (master plan Stage C)
     "farm.crates": False,           # C1: shoot street-level crates and collect their cube when safe
     "farm.cubes": False,            # C3: also collect any other visible cube (kill drops) when safe
@@ -104,10 +104,12 @@ DEFAULTS = {
     "farm.drone_dist_max": 50.0,    # stand-and-shoot maximum distance from drone
     "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
     "farm.min_hp": 0.6,             # ...and HP at least this fraction (crates/cubes)
-    "farm.max_dist": 80.0,
-    "farm.bank": False,
+    "farm.max_dist": 80.0,          # consider crates/cubes/drones within this distance
+    "farm.bank": False,             # M2: leave cubes on the floor at >= 95% HP; walk over them below 70% HP
+    "nav.ground_goals": False,      # N9: hide / cover / press / hunt / split goals snap to street cells only
+    "mpc.split_cache": False,       # N9: fight and retreat MPC keep separate 0.3 s caches
     "farm.cap": False,              # N8: at the cube stat cap stop farming / looting cubes (they only add size)
-    "farm.wounded": False,          # N8: below 85% HP no crates / drones (dealing damage restarts regen)             # M2: leave cubes on the floor at >= 95% HP; walk over them below 70% HP          # consider crates/cubes/drones within this distance
+    "farm.wounded": False,          # N8: below 85% HP no crates / drones (dealing damage restarts regen)
     # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
     # the score reads out the place points earned before it
     "probe.idle_at": None,
@@ -666,6 +668,16 @@ PRESETS = {
               "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
               "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
               "arm.roof_until": 100.0, "retreat.fresh_hide": True, "farm.cap": True, "farm.wounded": True},
+    "n9": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
+              "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
+              "arm.roof_until": 100.0, "retreat.fresh_hide": True, "nav.ground_goals": True,
+              "mpc.split_cache": True},
     "hold": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,

@@ -135,7 +135,7 @@ class Strategy:
         for rad in (8.0, 16.0, 26.0, 38.0):
             for k in range(HIDE_DIRS):
                 a = 2 * math.pi * k / HIDE_DIRS
-                q = self.core.nearest_walkable(x + rad * math.cos(a), y + rad * math.sin(a), r, False)
+                q = self.core.nearest_walkable(x + rad * math.cos(a), y + rad * math.sin(a), r, bool(tuning.get("nav.ground_goals")))
                 if q is None or math.dist(q, (x, y)) > rad + 4:
                     continue
                 if cur is not None and self.zone.depth(cur, q) < ZONE_MARGIN_M:
@@ -157,7 +157,7 @@ class Strategy:
         for rad in HIDE_RADII:
             for k in range(HIDE_DIRS):
                 a = 2 * math.pi * k / HIDE_DIRS
-                q = self.core.nearest_walkable(x + rad * math.cos(a), y + rad * math.sin(a), r, False)
+                q = self.core.nearest_walkable(x + rad * math.cos(a), y + rad * math.sin(a), r, bool(tuning.get("nav.ground_goals")))
                 if q is None or math.dist(q, (x, y)) > rad + 4:
                     continue
                 if cur is not None and self.zone.depth(cur, q) < ZONE_MARGIN_M:
