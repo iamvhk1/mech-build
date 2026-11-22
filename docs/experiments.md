@@ -433,4 +433,4 @@ Bugs that misread the rules cost more than any tuning (the trigger-timing bug al
 Repeat the audit after each new module, and add a synthetic test for every rule the recording
 can't exercise.
 
-| — | medkit bank (not built) | – | – | Leave cubes on the floor to pick up mid-fight as instant heals. A cube heals exactly the max HP it adds (+4%) whenever it is picked up, so banking creates no extra healing and only delays the +4% damage; past the 10-cube cap cubes add no HP (only 5% size). No gain. |
+| — | `mpc_bank` (built, not run) | – | – | Medkit bank (`farm.bank`): at >= 95% HP leave floor and kill cubes on the floor; below 70% HP walk over a remembered cube within 25 m (also while retreating). Simulator, 60 matches: **3.88 vs M1 4.72**, lightning damage −16%: kills happen at high HP, so their cubes (+4% damage each) were left behind exactly when needed. Off. |

@@ -269,8 +269,17 @@ class Pacer:
         fresh = [h for h in hunters if t - h.t_seen < SPLIT_FRESH_S
                  and math.dist(h.pos_at(tt)[:2], pos[:2]) <= SPLIT_RANGE_M]
 
-        # 1) loot the kill's cubes (with pacing.loot_more: every recent kill, see loot_goal)
-        if tuning.get("pacing.loot_more"):
+        # 1) loot the kill's cubes (with pacing.loot_more: every recent kill, see loot_goal); with
+        # farm.bank, cash in a remembered cube when hurt, and leave cubes on the floor at high HP
+        if tuning.get("farm.bank"):
+            if hp < 0.70 and getattr(self, "farmer", None) is not None:
+                g = self.farmer.bank_goal(me, zone, walk)
+                if g is not None:
+                    self.mode = self.farmer.mode
+                    return g
+        if tuning.get("farm.bank") and hp >= 0.95:
+            pass  # banking: don't walk to kill cubes at high HP
+        elif tuning.get("pacing.loot_more"):
             g = self.loot_goal(obs, zone, hunters, threats, cubes, walk, retreating=False)
             if g is not None:
                 return g

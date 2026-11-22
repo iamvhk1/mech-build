@@ -69,6 +69,7 @@ class Bot:
         self.dropper = DropContester(self.core, self.cfg)
         self.pacer = Pacer(self.core, self.cfg)
         self.armer = Armer(self.core, self.cfg, self.farmer)
+        self.pacer.farmer = self.farmer  # farm.bank: the pacer cashes in remembered cubes
         self.probe_idle = False  # diagnostics: set by probe.idle_on_pace
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
@@ -158,6 +159,8 @@ class Bot:
             self._rl_tick = obs["tick"]
             self._rl_goal = self.pacer.loot_goal(obs, self.zone, self.threats.hunters(me["pos"]), self.threats,
                                                  self.farmer.cubes, walk, retreating=True)
+            if self._rl_goal is None and tuning.get("farm.bank"):
+                self._rl_goal = self.farmer.bank_goal(me, self.zone, walk)
         return self._rl_goal
 
     def stuck_paused(self, strafe_xy) -> bool:
@@ -249,7 +252,7 @@ class Bot:
         if t < self.evade_until and self.evade_goal is not None:
             goal, why = self.evade_goal, "evade laser"
         elif dec.state == "retreat" and not zone_urgent and tuning.get("fight.pacing") and \
-                tuning.get("pacing.loot_more") and self._retreat_loot(obs) is not None:
+                (tuning.get("pacing.loot_more") or tuning.get("farm.bank")) and self._retreat_loot(obs) is not None:
             goal, why = self._retreat_loot(obs), f"pace {self.pacer.mode} (retreating)"
         elif dec.goal is not None:
             goal = dec.goal

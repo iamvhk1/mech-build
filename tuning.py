@@ -78,7 +78,8 @@ DEFAULTS = {
     "farm.drone_dist_max": 50.0,    # stand-and-shoot maximum distance from drone
     "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
     "farm.min_hp": 0.6,             # ...and HP at least this fraction (crates/cubes)
-    "farm.max_dist": 80.0,          # consider crates/cubes/drones within this distance
+    "farm.max_dist": 80.0,
+    "farm.bank": False,             # M2: leave cubes on the floor at >= 95% HP; walk over them below 70% HP          # consider crates/cubes/drones within this distance
     # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
     # the score reads out the place points earned before it
     "probe.idle_at": None,
@@ -342,6 +343,13 @@ PRESETS = {
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
               "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
               "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True},
+    "mpc_bank": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True, "farm.bank": True},
     "h2_roof": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,

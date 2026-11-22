@@ -29,6 +29,11 @@ class Item:
         self.id, self.pos, self.hp, self.t = iid, list(pos), hp, t
 
 
+BANK_HP = 0.95          # farm.bank: at or above this HP fraction, leave cubes on the floor
+BANK_USE_HP = 0.70      # ...and walk over a remembered one within BANK_USE_M below this
+BANK_USE_M = 25.0
+
+
 class Farmer:
     def __init__(self, core, cfg: dict):
         self.core = core
@@ -123,6 +128,28 @@ class Farmer:
                 return False
         return True
 
+    def bank_goal(self, me: dict, zone, walk: float):
+        """farm.bank: the nearest remembered cube within BANK_USE_M when HP is below BANK_USE_HP."""
+        if not tuning.get("farm.bank"):
+            return None
+        hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
+        if hp >= BANK_USE_HP:
+            return None
+        pos = me["pos"]
+        best, bd = None, BANK_USE_M
+        for c in self.cubes.values():
+            d = math.dist(c.pos[:2], pos[:2])
+            if d >= bd:
+                continue
+            if zone is not None and getattr(zone, "known", False) and \
+                    zone.time_until_outside(c.pos) <= d / max(1.0, walk) + 5.0:
+                continue
+            best, bd = c, d
+        if best is None:
+            return None
+        self.mode = f"bank {best.id}"
+        return (best.pos[0], best.pos[1])
+
     def on_street(self, pos) -> bool:
         if self.core is None:
             return True
@@ -159,8 +186,11 @@ class Farmer:
                 return True
             return zone.time_until_outside(p) > math.dist(p[:2], pos[:2]) / max(1.0, walk) + CUBE_SPEED_MARGIN_S
 
-        # 1) a cube nearby (from our crate, or any cube with farm.cubes)
-        if tuning.get("farm.crates") or tuning.get("farm.cubes"):
+        # 1) a cube nearby (from our crate, or any cube with farm.cubes); with farm.bank, leave cubes on
+        # the floor at high HP and come back for them as instant heals mid-fight
+        hp_frac = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
+        banking = bool(tuning.get("farm.bank")) and hp_frac >= BANK_HP
+        if (tuning.get("farm.crates") or tuning.get("farm.cubes")) and not banking:
             cubes = [c for c in self.cubes.values()
                      if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and self._street("cube", c)]
             if not tuning.get("farm.cubes"):
