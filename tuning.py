@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "laser"
+ACTIVE = "hunt"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -85,12 +85,13 @@ PRESETS = {
     # + supply drops with the A1 fix (run B4) 3.46; + loot a kill's cubes (run C2c) 3.48, kept by
     # decision despite the tie (highest score so far; plausible mechanism); + crates/cubes up to 120 m
     # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept; + arm up early with a
-    # remembered lightning (run D1) 4.05; + press a lone hunter into lightning range (run D2) 4.19
+    # remembered lightning (run D1) 4.05; + press a lone hunter into lightning range (run D2) 4.19;
+    # + FFA/zone fixes (8b5a7d5) 4.30; + laser fallback with the laser aim fix (run D3) 4.46
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-             "fight.press": True},
+             "fight.press": True, "arm.laser_after": 45.0},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -240,13 +241,13 @@ PRESETS = {
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-             "fight.press": True, "fight.hunt": True},
+             "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True},
     # D5: best (4.19) + contest drops with up to one known mech near (fighting it if needed)
     "drops_bold": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
                    "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-                   "fight.press": True, "drops.max_threats": 1},
+                   "fight.press": True, "arm.laser_after": 45.0, "drops.max_threats": 1},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

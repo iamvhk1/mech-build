@@ -146,7 +146,7 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 35 | `arm` (run D1) | `442dfb9` | **4.05** | `best` + arm up early: remember every weapon pickup seen and, while slot 1 is empty and no hunter is within 50 m, walk to the nearest street-level lightning up to 200 m away. Lightning does 240 damage/s within 45 m with no aiming (the gun sustains ~100/s), and combat only took a lightning visible within 40 m: in the recorded match four were seen at 81-196 m and slot 1 stayed empty. Squad simulator: armed in 31/40 matches at ~29 s (vs 24/40 at ~70 s). **4.05, highest so far** (+0.17 over C3, within the ±0.3 noise, but a sound mechanism the simulator confirms). Kept; now part of `best`; picked as final entry. |
 | 36 | `press` (run D2) | `98bb86a` | **4.19** | `best` (4.05) + `fight.press`: holding lightning with energy ≥ 35 and HP ≥ 50%, and with exactly one fresh hunter 32-90 m away, step in to 25 m so lightning (45 m range) reaches it. Squad simulator: 4.75 vs 4.00, lightning damage 2,594 vs 1,601 per match; but the simulator's house bots carry only a gun, so stepping into their lightning range isn't modelled.. **4.19, highest so far** (+0.14 over D1, within noise; the feared punishment by house-bot lightning didn't show). Kept; now part of `best`. |
 | 36b | `press` + FFA/zone fixes | `8b5a7d5` | **4.30** | D2 plus mode detection catching gun fights between others and arm-up waiting for an urgent zone (no intended practice change). **Highest so far; picked as the final entry.** |
-| 37 | `laser` (run D3) | – | pending | `best` (4.19) + laser fallback: from 45 s, with no lightning within reach, take the nearest street-level laser (swap it for a lightning later when one is in reach). Includes a **laser aim fix**: `laser_trigger` released on the *gun's lead* solution (at 60 m vs a 10 m/s target that's ~2.4 m off, about the target's radius); a beam is instant, so once charged it now aims straight at the target and releases when the torso is within its width. Squad simulator: laser taken in 8/60 matches, 106/133 beams hit, points 5.13 vs 4.75 (its bots don't dodge charging lasers). |
+| 37 | `laser` (run D3) | `f0918d6` | **4.46** | `best` (4.19) + laser fallback: from 45 s, with no lightning within reach, take the nearest street-level laser (swap it for a lightning later when one is in reach). Includes a **laser aim fix**: `laser_trigger` released on the *gun's lead* solution (at 60 m vs a 10 m/s target that's ~2.4 m off, about the target's radius); a beam is instant, so once charged it now aims straight at the target and releases when the torso is within its width. Squad simulator: laser taken in 8/60 matches, 106/133 beams hit, points 5.13 vs 4.75 (its bots don't dodge charging lasers).. **4.46, highest so far** (+0.16 over 4.30: a tie on score alone, kept for the sound mechanism). Now part of `best`; picked as final entry. |
 | 38 | `hunt` (run D4) | – | pending | `best` + `fight.hunt`: holding lightning, HP ≥ 70% and energy ≥ 50, when the only mech we know of is 32–250 m away, go to within 25 m of it (the early squad sends one bot at a time). Simulator can't judge it (its bots walk straight at us): 4.83 vs 4.82. |
 | 39 | `drops_bold` (run D5) | – | pending | `best` + `drops.max_threats` 1: contest a supply drop with up to one known mech within 80 m, fighting it if needed. Simulator can't judge it (we rarely live to the drops there): 4.85 vs 4.82. |
 
@@ -269,6 +269,25 @@ Worth up to 15 points per match, but only if we are alive at ~6:55.
 - Roofs: re-test only if E2's cover logic makes a specific roof variant look promising.
 
 Stage F complete! Best score remains **3.38**. Next: Stage G (tuning sweeps on `best`: engagement distance, retreat thresholds).
+
+### Final stretch (decided 2026-11-22 ~2:30 AM EST; cutoff 11:00 AM EST)
+
+**Final entry now:** `f0918d6` (4.46; was `8b5a7d5`, 4.30). Every later run builds on it (it is an ancestor), so any
+later winner also carries its free-for-all and zone fixes.
+
+Each run is the current winner + one switch. Noise is ~±0.3 per run, so:
+- **Keep** a switch if the run scores ≥ the current best + ~0.3 *and* the mechanism is sound; then
+  pick that commit as the final entry.
+- **Tie** (within ~0.3): keep the simpler bot (switch off) unless the mechanism is strong and the
+  score is at least as high.
+- **Clearly lower** (≥ 0.4 below): switch off for good.
+
+| Step | Run | Switch | Status |
+| :--- | :--- | :--- | :--- |
+| 1 | D3 `laser` | `arm.laser_after` 45 (+ laser aim fix) | **4.46, kept; final entry `f0918d6`** |
+| 2 | D4 `hunt` | `fight.hunt` | submitted, on top of D3 |
+| 3 | D5 `drops_bold` | `drops.max_threats` 1 | after step 2 |
+| 4 | freeze, last ~1.5 h (from ~9:30 AM EST) | — | final pick = best-scoring commit at or after `8b5a7d5`; rerun tests, check.py, Docker check; confirm the pick on the track page; no new features |
 
 ### Scorer builders-4 (from Sun 1:00 AM, 2026-11-22)
 

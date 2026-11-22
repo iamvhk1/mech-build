@@ -37,7 +37,9 @@ class ArmTest(unittest.TestCase):
         """Since run D1 (4.05), best arms up; since D2 (4.19) it also presses."""
         b = tuning._resolve("best")
         self.assertTrue(b["arm.early"] and b["fight.press"])
-        self.assertEqual({k: v for k, v in tuning._resolve("arm").items() if v != b[k]}, {"fight.press": False})
+        self.assertEqual({k: v for k, v in tuning._resolve("arm").items() if v != b[k]},
+                         {"fight.press": False, "arm.laser_after": None})
+        self.assertEqual(tuning._resolve("laser"), b)  # since run D3 (4.46) best has the laser fallback
 
     def test_remembers_a_far_lightning_and_goes_for_it(self):
         o = make_obs((0, 0, 0), t=5.0, pickups=[pk(8001, "lightning", (150, 0)), pk(8002, "laser", (30, 0))])
