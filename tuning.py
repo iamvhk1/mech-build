@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "package"
+ACTIVE = "pkg_fallback"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -36,6 +36,7 @@ DEFAULTS = {
     "retreat.cornered_m": 25.0,     # ...but fight back this close
     "retreat.finish_hp": 0.15,      # ...or finish a target this low
     "retreat.away": False,          # R1: hide spots only on the far side from the hunters' centre
+    "retreat.fallback": False,      # G3: no fully hidden spot -> flee to the best partial cover (choke-like)
     "retreat.scaled": False,        # F2: retreat at 50% with 2 hunters within 75 m, 65% with 3+
     "retreat.many_n": None,         # S1: also retreat with this many hunters within 100 m...
     "retreat.many_hp": 0.70,        # ...when below this HP fraction
@@ -315,6 +316,13 @@ PRESETS = {
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
               "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True, "fight.los": True},
     # G candidates on top of the 4.72 package
+    "pkg_fallback": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "retreat.fallback": True},
     "pkg_choke": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,

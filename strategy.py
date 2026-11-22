@@ -106,7 +106,50 @@ class Strategy:
             best = self._hide_search(x, y, r, h, eyes, cur, side)
             if best is not None:
                 return best
+        if tuning.get("retreat.fallback"):
+            return self._cover_fallback(x, y, r, h, eyes, cur, away)
         return None
+
+    def _lanes(self, xy, h: float) -> int:
+        """How many of 16 directions a bot 50 m out could shoot this spot from (map only, cached)."""
+        if not hasattr(self, "_lane_cache"):
+            self._lane_cache = {}
+        key = (int(round(xy[0] / 2.0)), int(round(xy[1] / 2.0)))
+        if key not in self._lane_cache:
+            z = self.core.floor_z(xy[0], xy[1])
+            eye = float(self.cfg["mech"].get("eye_height", 8.0))
+            n = 0
+            for k in range(16):
+                a = 2 * math.pi * k / 16
+                ex, ey = xy[0] + 50.0 * math.cos(a), xy[1] + 50.0 * math.sin(a)
+                if self.core.shot_los((ex, ey, self.core.floor_z(ex, ey) + eye), (xy[0], xy[1], z + h * 0.5)) >= 1.0:
+                    n += 1
+            self._lane_cache[key] = n
+        return self._lane_cache[key]
+
+    def _cover_fallback(self, x, y, r, h, eyes, cur, away) -> Optional[Tuple[float, float]]:
+        """No fully hidden spot: the best partial cover within reach (fewest hunters able to shoot it,
+        fewest open approach lanes), preferring the far side from the hunters. Better than standing."""
+        best, best_s = None, math.inf
+        for rad in (8.0, 16.0, 26.0, 38.0):
+            for k in range(HIDE_DIRS):
+                a = 2 * math.pi * k / HIDE_DIRS
+                q = self.core.nearest_walkable(x + rad * math.cos(a), y + rad * math.sin(a), r, False)
+                if q is None or math.dist(q, (x, y)) > rad + 4:
+                    continue
+                if cur is not None and self.zone.depth(cur, q) < ZONE_MARGIN_M:
+                    continue
+                z = self.core.floor_z(q[0], q[1])
+                seen = sum(1 for e in eyes if self.core.shot_los(e, (q[0], q[1], z + h * 0.5)) >= 1.0)
+                s = 3.0 * seen + 0.5 * self._lanes(q, h) + 0.04 * math.dist(q, (x, y))
+                if away is not None and (q[0] - x) * away[0] + (q[1] - y) * away[1] < 0:
+                    s += 4.0  # toward the hunters: allowed, but only if clearly better
+                if s < best_s:
+                    best, best_s = q, s
+        here_z = self.core.floor_z(x, y)
+        here = 3.0 * sum(1 for e in eyes if self.core.shot_los(e, (x, y, here_z + h * 0.5)) >= 1.0) + \
+            0.5 * self._lanes((x, y), h)
+        return best if best is not None and best_s < here else None
 
     def _hide_search(self, x, y, r, h, eyes, cur, away) -> Optional[Tuple[float, float]]:
         best, best_s = None, math.inf
