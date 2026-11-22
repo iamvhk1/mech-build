@@ -63,6 +63,9 @@ DURABLE = {"plating": 100.0, "armor": 90.0, "gun_rate": 70.0, "gun_damage": 69.0
            "lightning_efficiency": 68.0, "lightning_chain": 67.0, "gyros": 50.0, "nanites": 45.0}
 
 
+VOLT = {"lightning_range": 120.0, "lightning_chain": 115.0, "lightning_efficiency": 110.0}
+
+
 def score_durable(choice_id: str, taken: Sequence[str], held_weapons: Sequence[str], defs: Dict[str, dict]) -> float:
     """`upgrades: durable`: we die in continuous fights, so raw toughness (plating, then armor) and
     damage first; out-of-combat regen (nanites) last. Unlisted ids fall back to the ranked score / 10."""
@@ -82,6 +85,12 @@ def pick(offer: Optional[dict], me: dict, cfg: dict, mode: str = "ranked") -> Op
     defs = {u["id"]: u for u in cfg.get("upgrades") or []}
     taken: List[str] = list(me.get("upgrades") or [])
     held = [w["kind"] for w in (me.get("weapons") or []) if w]
-    fn = score_durable if mode == "durable" else score
+    if mode == "volt":
+        def fn(cid, tk, hw, df):
+            if "lightning" in hw and cid in VOLT and sum(1 for u in tk if u == cid) < int((df.get(cid) or {}).get("max", 2)):
+                return VOLT[cid]
+            return score_durable(cid, tk, hw, df)
+    else:
+        fn = score_durable if mode == "durable" else score
     scores = [fn(c.get("id", ""), taken, held, defs) for c in offer["choices"]]
     return max(range(len(scores)), key=lambda i: scores[i])

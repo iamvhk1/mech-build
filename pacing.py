@@ -410,9 +410,9 @@ class Pacer:
             h = fresh[0]
             hp_ = h.pos_at(tt)
             d = math.dist(hp_[:2], pos[:2])
-            if PRESS_FROM_M < d <= PRESS_MAX_M:
+            if max(PRESS_FROM_M, float(tuning.get("press.to_m")) + 5.0) < d <= PRESS_MAX_M:
                 ux, uy = (pos[0] - hp_[0]) / d, (pos[1] - hp_[1]) / d
-                goal = (hp_[0] + ux * PRESS_TO_M, hp_[1] + uy * PRESS_TO_M)
+                goal = (hp_[0] + ux * float(tuning.get("press.to_m")), hp_[1] + uy * float(tuning.get("press.to_m")))
                 if self.core is not None:
                     r = float((me.get("stats") or {}).get("radius", 2.5))
                     q = self.core.nearest_walkable(goal[0], goal[1], r, False)

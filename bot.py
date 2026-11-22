@@ -161,7 +161,7 @@ class Bot:
             t = float(obs["t"])
             walk = float((me.get("stats") or {}).get("walk_speed", self.cfg["mech"]["walk_speed"]))
             fresh = [h for h in self.threats.hunters(me["pos"]) if t - h.t_seen < 5.0
-                     and math.dist(h.pos_at(self.threats.t)[:2], me["pos"][:2]) <= 110.0]
+                     and math.dist(h.pos_at(self.threats.t)[:2], me["pos"][:2]) <= float(tuning.get("mpc.retreat_m"))]
             self._rm_tick = obs["tick"]
             self._rm_goal = self.pacer._mpc_goal(me, me["pos"], fresh, self.threats.t, self.zone, walk, t,
                                                  retreating=True) if fresh and self.core is not None else None

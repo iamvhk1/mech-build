@@ -366,6 +366,11 @@ class Match:
         elif uid == "lightning_efficiency":
             self.lw["energy"] = self.lw["energy"] * 0.65
             self.lw["damage"] = self.lw["damage"] * 1.1
+        elif uid == "lightning_range":
+            self.lw["range"] = self.lw["range"] * 1.2
+            self.lw["cone_deg"] = self.lw["cone_deg"] * 1.2
+        elif uid == "lightning_chain":
+            self.lw["chain"] = self.lw.get("chain", 2) + 1
 
     def _dmg_mult(self):
         return 1.0 + float(self.cfg["cubes"]["damage_per_cube"]) * min(self.cubes, self.cfg["cubes"]["stat_cap"])
@@ -712,6 +717,23 @@ class Match:
                     self.events.append({"type": "hit", "target": h.id, "amount": dmg, "weapon": "lightning"})
                     if h.hp <= 0:
                         self._kill(h)
+                    # chain to up to `chain` more hunters near the previous one
+                    hit, prev, mult = {h.id}, h, 1.0
+                    for _ in range(int(self.lw.get("chain", 2))):
+                        mult *= float(self.lw.get("chain_falloff", 0.7))
+                        nxt = [o for o in self.hunters if o.alive and o.id not in hit
+                               and math.dist(o.pos[:2], prev.pos[:2]) <= float(self.lw.get("chain_range", 14.0))]
+                        if not nxt:
+                            break
+                        o = min(nxt, key=lambda o: math.dist(o.pos[:2], prev.pos[:2]))
+                        cd = dmg * mult
+                        o.hp -= cd
+                        o.active = True
+                        self.stats["lightning_dmg"] += cd
+                        hit.add(o.id)
+                        prev = o
+                        if o.hp <= 0:
+                            self._kill(o)
             # our laser: hold to charge, let go to fire a hitscan beam along the actual aim
             if self.slot1 == "laser":
                 full = float(self.lz["charge"])
