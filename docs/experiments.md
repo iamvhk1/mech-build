@@ -370,7 +370,17 @@ Bugs that misread the rules cost more than any tuning (the trigger-timing bug al
    - A3: the farmed drone's position was frozen at first sight. Fixed.
    - A4: withdrawn, not a bug. `threat` comes from `laser_threat`, which only returns a mech charging a
      laser, so the `kind == "mech"` check only stops lightning at an attacking NPC drone (saves energy).
-6. **Decision timing, 2026-11-22** (squad simulator, 40 matches, plus crowded-view stress test): p99
+6. **Review of outside suggestions, 2026-11-22:**
+   - Mode detection (passive free-for-all lobbies): the laser-beam signal (A2) misses gun fights, so
+     mode.py also counts a visible mech, more than 30 m from us and inside the zone, losing at least 35 HP
+     between consecutive sightings that we didn't deal (no `hit` from us within 1.5 s) with no NPC drone
+     within 60 m. Three such observations switch to free-for-all, at any time. Squad simulator: never fires
+     (40 matches). Rejected: "enemies aiming at each other" and "fire not aimed at us" (both happen in
+     practice: lines of fire through squad mates, house bots shooting drones).
+   - Zone: the weapon-pickup branch (including arm-up) now waits while the zone is urgent, like the others.
+   - Not done: relaxing the 120 m farming block (loot already takes kill cubes near hunters; G5's 80 m
+     was a tie) and pathing retreats through heals (4% per cube vs 45 HP/s regen; not measurable now).
+7. **Decision timing, 2026-11-22** (squad simulator, 40 matches, plus crowded-view stress test): p99
    0.7 ms, max ~19 ms locally; 15 extra mechs in view cost ~2 ms. The rare spikes are pathfinding
    (max ~18 ms); hide search and GC stay under 7 ms. The 1-CPU container is ~2.7x slower (check.py
    p50 0.9 vs 2.5 ms), so about one late decision per match at worst (a 0.1 s coast). No change made.

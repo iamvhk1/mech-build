@@ -24,6 +24,12 @@ import tuning
 INFIGHT_HIT_M = 5.0      # a laser ending this close to a mech hit it (mech radius 2.5 m, grows with cubes)
 INFIGHT_CLEAR_M = 30.0   # ...and that mech is at least this far from us (not a shot at us passing by)
 INFIGHT_EVENTS = 2       # beams needed to switch to free-for-all
+# HP signal (catches gun fights, which leave no beam): a visible mech loses HP we didn't deal
+HP_DROP_MIN = 35.0       # per observation; above an NPC bullet (25) and per-tick zone damage (<= 26)
+HP_SEEN_GAP_S = 1.0      # compare only consecutive sightings this close in time
+OUR_HIT_S = 1.5          # ignore mechs we hit this recently (our gun, lightning chain, mortar splash)
+NPC_CLEAR_M = 60.0       # ignore mechs with a visible NPC drone this close (drones shoot house bots)
+HP_EVENTS = 3            # HP-drop observations needed to switch to free-for-all
 
 
 class ModeDetector:
@@ -33,6 +39,9 @@ class ModeDetector:
         self.mode: str = "practice"
         self.locked: bool = False
         self.infighting: int = 0
+        self.hp_events: int = 0
+        self.prev_hp = {}   # mech id -> (t, hp)
+        self.our_hits = {}  # mech id -> last t we hit it
 
     def reset(self) -> None:
         self.last_alive = None
@@ -40,7 +49,44 @@ class ModeDetector:
         self.mode = "practice"
         self.locked = False
         self.infighting = 0
+        self.hp_events = 0
+        self.prev_hp = {}
+        self.our_hits = {}
         tuning.set_mode("practice")
+
+    def _hp_drops(self, obs: dict, zone) -> int:
+        """Third-party damage: a visible mech, far from us and inside the zone, loses HP that we
+        didn't deal and no visible NPC drone is near it. House bots never fight each other."""
+        t = float(obs.get("t", 0.0))
+        me = obs.get("self") or {}
+        my_id = me.get("id")
+        mp = me.get("pos") or [0.0, 0.0, 0.0]
+        for e in obs.get("events") or []:
+            if e.get("type") == "hit" and e.get("target") is not None:
+                self.our_hits[int(e["target"])] = t
+        mechs = obs.get("mechs") or []
+        npcs = [m["pos"] for m in mechs if m.get("kind") == "npc"]
+        circle = zone.current() if zone is not None and getattr(zone, "known", False) else None
+        n = 0
+        for m in mechs:
+            if m.get("kind", "mech") != "mech" or m.get("id") == my_id or m.get("hp") is None:
+                continue
+            mid, hp = int(m["id"]), float(m["hp"])
+            prev = self.prev_hp.get(mid)
+            self.prev_hp[mid] = (t, hp)
+            if prev is None or t - prev[0] > HP_SEEN_GAP_S or prev[1] - hp < HP_DROP_MIN:
+                continue
+            p = m["pos"]
+            if t - self.our_hits.get(mid, -1e9) <= OUR_HIT_S:
+                continue
+            if math.dist(p[:2], mp[:2]) < INFIGHT_CLEAR_M:
+                continue  # splash or chains from shots at us
+            if any(math.dist(p[:2], q[:2]) <= NPC_CLEAR_M for q in npcs):
+                continue
+            if circle is not None and math.hypot(p[0] - circle[0], p[1] - circle[1]) > circle[2] - 5.0:
+                continue  # zone damage
+            n += 1
+        return n
 
     def _infighting(self, obs: dict) -> int:
         """Audit A2: laser beams from one other mech ending on a third mech (not us, not near us).
@@ -75,7 +121,8 @@ class ModeDetector:
         if self.mode == "ffa":
             return "ffa"
         self.infighting += self._infighting(obs)
-        if self.infighting >= INFIGHT_EVENTS:
+        self.hp_events += self._hp_drops(obs, zone)
+        if self.infighting >= INFIGHT_EVENTS or self.hp_events >= HP_EVENTS:
             self.mode = "ffa"
             tuning.set_mode("ffa")
             return "ffa"

@@ -228,7 +228,7 @@ class Bot:
             if cover is not None:
                 self.evade_goal, self.evade_until = cover, t + EVADE_HOLD_S
         pickup = None if dec.retreat else self.combat.wanted_pickup(obs, targets, self.zone)
-        if pickup is None and not dec.retreat and tuning.get("arm.early"):
+        if pickup is None and not dec.retreat and not zone_urgent and tuning.get("arm.early"):
             # arm up: walk to a remembered lightning beyond combat's 40 m view rule
             pickup = self.armer.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, walk)
         if t < self.evade_until and self.evade_goal is not None:

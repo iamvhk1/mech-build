@@ -143,6 +143,49 @@ class ModeDetectionTest(unittest.TestCase):
         self.assertEqual(mode, "ffa")
         self.assertEqual(tuning.get_mode(), "ffa")
 
+    def _hp_obs(self, t, hp, pos=(150.0, 0.0, 0.0), events=(), npc=None):
+        mechs = [{"id": 5, "kind": "mech", "pos": list(pos), "hp": hp, "max_hp": 1400}]
+        if npc is not None:
+            mechs.append({"id": 104, "kind": "npc", "pos": list(npc), "hp": 350, "max_hp": 350})
+        return {"alive": 16, "t": t, "events": list(events), "self": {"id": 1, "pos": [0.0, 0.0, 0.0]},
+                "mechs": mechs, "beams": []}
+
+    def test_third_party_hp_loss_switches_to_ffa_even_late(self):
+        """A visible mech far from us loses gun-sized chunks of HP we didn't deal: a free-for-all."""
+        z = self._zone(radius=560, shrink_start=60)
+        self.detector.observe({"alive": 16, "t": 125.0, "events": []}, z)  # past the death-rule lock
+        hp = 1400.0
+        for i in range(3):
+            self.assertEqual(self.detector.mode, "practice")
+            self.detector.observe(self._hp_obs(130.0 + 0.1 * i, hp), z)
+            hp -= 45.0
+        self.detector.observe(self._hp_obs(130.3, hp), z)
+        self.assertEqual(self.detector.mode, "ffa")
+
+    def test_hp_loss_we_caused_or_from_drones_or_near_us_is_not_ffa(self):
+        z = self._zone(radius=560, shrink_start=60)
+        hit = [{"type": "hit", "target": 5, "amount": 45, "weapon": "gun"}]
+        cases = [
+            dict(events=hit),                       # we hit it
+            dict(npc=(160.0, 10.0, 0.0)),           # an NPC drone next to it
+            dict(pos=(20.0, 0.0, 0.0)),             # it's next to us (splash / chains from shots at us)
+        ]
+        for c in cases:
+            d = ModeDetector()
+            d.reset()
+            hp = 1400.0
+            for i in range(6):
+                d.observe(self._hp_obs(10.0 + 0.1 * i, hp, **c), z)
+                hp -= 45.0
+            self.assertEqual(d.mode, "practice", c)
+        d = ModeDetector()
+        d.reset()
+        hp = 1400.0
+        for i in range(6):  # small drops (an NPC bullet is 25)
+            d.observe(self._hp_obs(10.0 + 0.1 * i, hp), z)
+            hp -= 25.0
+        self.assertEqual(d.mode, "practice")
+
     def test_beams_at_us_or_lightning_are_not_infighting(self):
         z = self._zone(radius=560, shrink_start=60)
         for i in range(5):
