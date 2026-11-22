@@ -434,3 +434,5 @@ Repeat the audit after each new module, and add a synthetic test for every rule 
 can't exercise.
 
 | — | `mpc_bank` (built, not run) | – | – | Medkit bank (`farm.bank`): at >= 95% HP leave floor and kill cubes on the floor; below 70% HP walk over a remembered cube within 25 m (also while retreating). Simulator, 60 matches: **3.88 vs M1 4.72**, lightning damage −16%: kills happen at high HP, so their cubes (+4% damage each) were left behind exactly when needed. Off. |
+| — | MPC upgrades (simulator, 60 matches each, vs M1 4.72) | – | – | `mpc.chase` (predict enemies closing on us instead of drifting along their velocity): 4.77; `mpc.min_hunters` 1 (MPC also with one hunter): 4.70, off; `mpc.retreat` (while retreating, the escape move with the least predicted damage, damage taken weighted 3x): 4.77, damage taken −4%. |
+| 52 | `mpc2` (run M2) | – | pending | M1 (4.78) + `mpc.chase` + `mpc.retreat`. Simulator, 60 matches: **4.97 vs 4.72**; lightning damage 2,976 vs 2,786, damage taken 2,582 vs 2,698. |

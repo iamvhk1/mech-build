@@ -151,6 +151,20 @@ class Bot:
         has_target = self.combat.engage_target(targets, float(obs["t"]), gun_range, muzzle=muzzle) is not None
         return self.dropper.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, has_target)
 
+    def _retreat_mpc(self, obs: dict):
+        """mpc.retreat: while retreating with hunters in sight, the escape move with the least
+        predicted damage taken (computed once per decision)."""
+        if getattr(self, "_rm_tick", None) != obs["tick"]:
+            me = obs["self"]
+            t = float(obs["t"])
+            walk = float((me.get("stats") or {}).get("walk_speed", self.cfg["mech"]["walk_speed"]))
+            fresh = [h for h in self.threats.hunters(me["pos"]) if t - h.t_seen < 5.0
+                     and math.dist(h.pos_at(self.threats.t)[:2], me["pos"][:2]) <= 110.0]
+            self._rm_tick = obs["tick"]
+            self._rm_goal = self.pacer._mpc_goal(me, me["pos"], fresh, self.threats.t, self.zone, walk, t,
+                                                 retreating=True) if fresh and self.core is not None else None
+        return self._rm_goal
+
     def _retreat_loot(self, obs: dict):
         """Kill cubes within reach while retreating (pacing.loot_more): computed once per decision."""
         if getattr(self, "_rl_tick", None) != obs["tick"]:
@@ -254,6 +268,9 @@ class Bot:
         elif dec.state == "retreat" and not zone_urgent and tuning.get("fight.pacing") and \
                 (tuning.get("pacing.loot_more") or tuning.get("farm.bank")) and self._retreat_loot(obs) is not None:
             goal, why = self._retreat_loot(obs), f"pace {self.pacer.mode} (retreating)"
+        elif dec.state == "retreat" and not zone_urgent and tuning.get("mpc.retreat") and \
+                self._retreat_mpc(obs) is not None:
+            goal, why = self._retreat_mpc(obs), f"retreat {self.pacer.mode}"
         elif dec.goal is not None:
             goal = dec.goal
         elif tuning.get("fight.cover") and not zone_urgent and self.fight_goal(obs, targets) is not None:

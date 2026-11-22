@@ -154,7 +154,7 @@ class Pacer:
         self.mode = f"choke {best_s:.1f}"
         return self.choke
 
-    def _mpc_goal(self, me: dict, pos, hunters, tt: float, zone, walk: float, t: float):
+    def _mpc_goal(self, me: dict, pos, hunters, tt: float, zone, walk: float, t: float, retreating: bool = False):
         if getattr(self, "_mpc_t", -1e9) > t - MPC_REPLAN_S and getattr(self, "_mpc_goal_xy", None) is not None:
             self.mode = "mpc hold"
             return self._mpc_goal_xy
@@ -175,6 +175,9 @@ class Pacer:
             dps = 100.0 + (240.0 if "lightning" in ws else 0.0) + (130.0 if "laser" in ws else 0.0)
             enemies.append((p, v, dps, "lightning" in ws))
         nearest = min(enemies, key=lambda e: math.dist(e[0][:2], pos[:2]))
+        chase = bool(tuning.get("mpc.chase"))
+        w_taken = float(tuning.get("mpc.w_taken")) if not retreating else float(tuning.get("mpc.w_taken_retreat"))
+        w_dealt = 1.0 if not retreating else 0.3
 
         def score_path(end):
             total = 0.0
@@ -184,7 +187,13 @@ class Pacer:
                 z = self.core.floor_z(q[0], q[1])
                 taken = dealt = 0.0
                 for (p, v, dps, light) in enemies:
-                    ep = (p[0] + v[0] * s_t, p[1] + v[1] * s_t)
+                    if chase:
+                        dx, dy = q[0] - p[0], q[1] - p[1]
+                        dn = math.hypot(dx, dy)
+                        step = min(max(0.0, dn - 20.0), speed * s_t)  # close in, stop ~20 m out
+                        ep = (p[0] + dx / dn * step, p[1] + dy / dn * step) if dn > 1e-6 else (p[0], p[1])
+                    else:
+                        ep = (p[0] + v[0] * s_t, p[1] + v[1] * s_t)
                     ez = self.core.floor_z(ep[0], ep[1])
                     d = math.dist(ep, q)
                     sees = self.core.shot_los((ep[0], ep[1], ez + eye), (q[0], q[1], z + h * 0.5)) >= 1.0
@@ -192,7 +201,7 @@ class Pacer:
                         taken += (100.0 + (240.0 if (light and d <= light_rng) else 0.0)
                                   + (dps - 100.0 - (240.0 if light else 0.0))) * (0.9 if d <= 60 else 0.6)
                         dealt += 100.0 * (0.9 if d <= 60 else 0.6) + (240.0 if (have_light and d <= light_rng) else 0.0)
-                total += dealt - 1.2 * taken
+                total += w_dealt * dealt - w_taken * taken
             return total
 
         best, best_s = None, -math.inf
@@ -354,7 +363,7 @@ class Pacer:
 
         # 4a) MPC: with 2+ hunters close, roll 12 manoeuvres + "stay" forward 1.2 s and take the one with
         # the best predicted damage dealt minus damage taken (enemies advance along their velocity)
-        if tuning.get("fight.mpc") and len(fresh) >= 2 and self.core is not None:
+        if tuning.get("fight.mpc") and len(fresh) >= int(tuning.get("mpc.min_hunters")) and self.core is not None:
             g = self._mpc_goal(me, pos, fresh, tt, zone, walk, t)
             if g is not None:
                 return g

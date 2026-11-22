@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "h2_mpc"
+ACTIVE = "mpc2"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -60,7 +60,12 @@ DEFAULTS = {
     "arm.prefer_laser": False,      # G2 check: go for a laser first instead of lightning
     "fight.finish": False,          # H3: a shootable enemy below 35% HP within 45 m comes first
     "fight.arc": False,             # H2: prefer targets that keep other attackers in our front 180 deg
-    "fight.mpc": False,             # M1: with 2+ hunters, 1.2 s rollouts of 13 manoeuvres (pacing.py)
+    "fight.mpc": False,
+    "mpc.min_hunters": 2,           # MPC with at least this many fresh hunters within 110 m
+    "mpc.chase": False,             # M3: predict enemies closing on us (house bots hunt) instead of drifting
+    "mpc.retreat": False,           # M4: while retreating, the escape move with the least predicted damage
+    "mpc.w_taken": 1.2,             # score = dealt - w_taken * taken
+    "mpc.w_taken_retreat": 3.0,     # ...while retreating (dealt weighted 0.3)             # M1: with 2+ hunters, 1.2 s rollouts of 13 manoeuvres (pacing.py)
     "fight.los": False,             # R2: with 2+ hunters, step to where the fewest can see us (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
@@ -343,6 +348,34 @@ PRESETS = {
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
               "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
               "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True},
+    "mpc_chase": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True, "mpc.chase": True},
+    "mpc_one": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True, "mpc.min_hunters": 1},
+    "mpc_retreat": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True, "mpc.retreat": True},
+    "mpc2": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True, "mpc.chase": True, "mpc.retreat": True},
     "mpc_bank": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
