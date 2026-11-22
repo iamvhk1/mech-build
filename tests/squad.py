@@ -140,8 +140,11 @@ class Match:
         self.cube_items = {}
         self.next_cube = 5000
         self.lw = self.cfg["weapons"]["lightning"]
-        self.slot1 = None          # kind of the weapon in slot 1 (only lightning fires in this sim)
+        self.slot1 = None          # kind of the weapon in slot 1 (lightning and laser fire in this sim)
         self.cd1 = 0.0
+        self.lz = self.cfg["weapons"]["laser"]
+        self.charge = 0.0
+        self.held_full = 0.0
         self.pickups = {}
         kinds = ["mortar", "laser", "lightning"]
         for i, (x, y) in enumerate(self._spawns(int(self.cfg["loot"].get("floor_count", 40)), sep0=30.0)):
@@ -151,7 +154,8 @@ class Match:
         self.kills = 0
         self.zone_deaths = 0
         self.stats = {"loot": 0, "split": 0, "press": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
-                      "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0}
+                      "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0,
+                      "laser_t": None, "laser_shots": 0, "laser_hits": 0, "laser_dmg": 0.0}
         self.hit_log = []  # (t, hunter id)
         self._wrap_pacer()
 
@@ -232,6 +236,9 @@ class Match:
         if self.slot1 == "lightning":
             slot1 = {"kind": "lightning", "cooldown": self.cd1,
                      "stats": dict(self.lw, damage=self.lw["damage"] * self._dmg_mult())}
+        elif self.slot1 == "laser":
+            slot1 = {"kind": "laser", "cooldown": self.cd1, "charge": self.charge,
+                     "stats": dict(self.lz, damage=self.lz["damage"] * self._dmg_mult())}
         elif self.slot1 is not None:
             slot1 = {"kind": self.slot1, "cooldown": 0.0, "stats": dict(self.cfg["weapons"][self.slot1])}
         st = dict(self.m)
@@ -251,10 +258,11 @@ class Match:
     def _dmg_mult(self):
         return 1.0 + float(self.cfg["cubes"]["damage_per_cube"]) * min(self.cubes, self.cfg["cubes"]["stat_cap"])
 
-    def _our_shot(self):
+    def _our_shot(self, spread=True, rng=None):
         """Geometric hit test against every hunter: the first cylinder the ray crosses, if no wall first."""
         m, g = self.m, self.g
-        s = math.radians(g["spread_deg"])
+        s = math.radians(g["spread_deg"]) if spread else 0.0
+        rng = g["range"] if rng is None else rng
         yaw, pitch = self.aim[0] + self.rng.gauss(0, s), self.aim[1] + self.rng.gauss(0, s)
         d = (math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), math.sin(pitch))
         x, y, z = self.me()
@@ -268,7 +276,7 @@ class Match:
                 continue
             ex, ey, ez = h.pos
             u = ((ex - start[0]) * d[0] + (ey - start[1]) * d[1]) / hh
-            if u <= 0 or u * math.sqrt(hh) > g["range"]:
+            if u <= 0 or u * math.sqrt(hh) > rng:
                 continue
             px, py = start[0] + d[0] * u, start[1] + d[1] * u
             if math.hypot(px - ex, py - ey) > m["radius"]:
@@ -382,9 +390,13 @@ class Match:
                 self.stats["max_ms"] = max(self.stats["max_ms"], (time.perf_counter() - t0) * 1000)
                 if getattr(self.bot.strategy, "state", "") == "retreat":
                     self.stats["retreat_s"] += 2 * DT
-            # legs and torso
+            # legs and torso (half speed while charging a laser)
             px, py = self.sim.x, self.sim.y
-            self.sim.apply({k: act.get(k) for k in ("move", "boost", "jump")}, DT)
+            legs = {k: act.get(k) for k in ("move", "boost", "jump")}
+            if self.charge > 0 and legs.get("move"):
+                legs["move"] = [legs["move"][0] * self.lz.get("charge_move_mult", 0.5) if False else legs["move"][0] * 0.5,
+                                legs["move"][1] * 0.5]
+            self.sim.apply(legs, DT)
             moving = math.hypot(self.sim.x - px, self.sim.y - py) / DT > 3.0
             a = act.get("aim") or self.aim
             dy = wrap(a[0] - self.aim[0])
@@ -424,9 +436,12 @@ class Match:
                     if self.slot1 is None or act.get("drop") == 1:
                         del self.pickups[tk]
                         self.slot1 = p["kind"]
-                        self.cd1 = 1.0
+                        self.cd1 = 1.0 if p["kind"] != "laser" else max(1.0, self.lz["cooldown"])
+                        self.charge = 0.0
                         if p["kind"] == "lightning" and self.stats["armed_t"] is None:
                             self.stats["armed_t"] = t
+                        if p["kind"] == "laser" and self.stats["laser_t"] is None:
+                            self.stats["laser_t"] = t
                         self.events.append({"type": "took", "id": tk, "kind": p["kind"], "slot": 1})
             # our lightning: nearest hunter in the cone within range, with a line
             self.cd1 = max(0.0, self.cd1 - DT)
@@ -455,6 +470,32 @@ class Match:
                     self.events.append({"type": "hit", "target": h.id, "amount": dmg, "weapon": "lightning"})
                     if h.hp <= 0:
                         self._kill(h)
+            # our laser: hold to charge, let go to fire a hitscan beam along the actual aim
+            if self.slot1 == "laser":
+                full = float(self.lz["charge"])
+                release = False
+                if fire[1] and self.cd1 == 0:
+                    self.charge = min(full, self.charge + DT)
+                    if self.charge >= full:
+                        self.held_full += DT
+                        release = self.held_full >= float(self.lz["hold_s"])
+                elif self.charge > 0:
+                    release = self.charge >= float(self.lz["min_charge"]) or not fire[1]
+                if release:
+                    frac = self.lz["min_frac"] + (1 - self.lz["min_frac"]) * min(1.0, self.charge / full)
+                    self.stats["laser_shots"] += 1
+                    self.charge, self.held_full, self.cd1 = 0.0, 0.0, float(self.lz["cooldown"])
+                    self.last_combat_t = t
+                    h = self._our_shot(spread=False, rng=float(self.lz["range"]))
+                    if h is not None:
+                        dmg = self.lz["damage"] * frac * self._dmg_mult()
+                        h.hp -= dmg
+                        h.active = True
+                        self.stats["laser_hits"] += 1
+                        self.stats["laser_dmg"] += dmg
+                        self.events.append({"type": "hit", "target": h.id, "amount": dmg, "weapon": "laser"})
+                        if h.hp <= 0:
+                            self._kill(h)
             # cube pickups
             x, y, zz = self.me()
             for cid in list(self.cube_items):
@@ -515,10 +556,13 @@ def summary(name, rs):
     mean = lambda k: sum(r[k] for r in rs) / n  # noqa: E731
     armed = sum(1 for r in rs if r["armed_t"] is not None)
     armed_t = sum(r["armed_t"] for r in rs if r["armed_t"] is not None) / max(1, armed)
+    lasered = sum(1 for r in rs if r["laser_t"] is not None)
+    shots, hits = sum(r["laser_shots"] for r in rs), sum(r["laser_hits"] for r in rs)
     return (f"{name:14s} points {mean('points'):5.2f}  death t {mean('t'):5.0f}s  kills {mean('kills'):4.2f}  "
             f"cubes {mean('cubes'):4.1f}  ganged {mean('ganged_s'):5.1f}s  retreat {mean('retreat_s'):5.1f}s  "
             f"loot {mean('loot'):5.1f}  split {mean('split'):5.1f}  press {mean('press'):5.1f}  zone deaths {mean('zone_deaths'):4.2f}  "
             f"armed {armed}/{n} (t {armed_t:4.0f}s)  lightning dmg {mean('lightning_dmg'):6.0f}  "
+            f"laser {lasered}/{n} hits {hits}/{shots} dmg {mean('laser_dmg'):5.0f}  "
             f"errors {sum(r['errors'] for r in rs)}  max {max(r['max_ms'] for r in rs):5.1f} ms")
 
 

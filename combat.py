@@ -444,9 +444,13 @@ class Combat:
             if intended is not None and intended.kind == "mech" and self.lightning_ok(obs, lw, intended, muzzle, act_yaw, targets):
                 fire[lightning_i] = True
 
-        # ---- laser (only if we ended up holding one): minimal charge/release
+        # ---- laser (only if we ended up holding one): charge on a target, then aim straight at it
+        # (a hitscan beam needs no lead) and release when the torso is on it
         if laser_i is not None:
-            fire[laser_i] = self.laser_trigger(slots[laser_i], target, solution, act_yaw, act_pitch, targets, muzzle)
+            fire[laser_i], laser_aim = self.laser_trigger(slots[laser_i], target, aim_pt, act_yaw, act_pitch,
+                                                          targets, muzzle)
+            if laser_aim is not None:
+                aim = list(laser_aim)
 
         self.debug = why
         return {"aim": [wrap(aim[0]), max(float(st.get("min_pitch", -0.7)), min(float(st.get("max_pitch", 1.3)), aim[1]))],
@@ -581,16 +585,25 @@ class Combat:
                 ok = False
         return [yaw, pitch], ok
 
-    def laser_trigger(self, w: dict, target: Optional[Target], solution, act_yaw, act_pitch,
-                      targets: List[Target], muzzle) -> bool:
-        """Minimal laser use: hold to charge with a stable target in sight; release (False) once
-        charged >= 0.65 s and on target. Never charge near a lightning carrier (it shorts us)."""
+    def laser_trigger(self, w: dict, target: Optional[Target], aim_pt, act_yaw, act_pitch,
+                      targets: List[Target], muzzle) -> Tuple[bool, Optional[Tuple[float, float]]]:
+        """(hold trigger, aim override). Hold to charge with a target in sight; once charged
+        (>= 0.65 s), aim straight at the target (the beam is instant: no lead) and release when the
+        torso is within the target's width. Never charge near a lightning carrier (it shorts us).
+        The beam fires along the actual torso aim when we let go."""
         charge = float((w or {}).get("charge", 0.0))
-        if target is None or solution is None:
-            return False  # releasing an early charge fires a weak beam at min_charge; acceptable
+        if target is None or aim_pt is None:
+            return False, None  # releasing an early charge fires a weak beam at min_charge; acceptable
         if any(m.kind == "mech" and "lightning" in m.weapons and m.dist <= 50.0 for m in targets):
-            return False
-        on = abs(wrap(act_yaw - solution[0])) < math.radians(1.0) and abs(act_pitch - solution[1]) < math.radians(1.0)
-        if charge >= 0.65 and on:
-            return False  # release: fires along the current aim
-        return float((w or {}).get("cooldown", 0.0)) < READY_WITHIN_S or charge > 0
+            return False, None
+        rng = float(((w or {}).get("stats") or self.cfg["weapons"]["laser"]).get("range", 280.0))
+        if math.dist(muzzle, aim_pt) > rng:
+            return False, None
+        if charge < 0.65:
+            return float((w or {}).get("cooldown", 0.0)) < READY_WITHIN_S or charge > 0, None
+        yaw, pitch = yaw_pitch(muzzle, aim_pt)
+        d = max(1.0, math.dist(muzzle, aim_pt))
+        tol_yaw = max(math.radians(0.4), math.atan2(target.radius * 0.7, d))
+        tol_pitch = max(math.radians(0.4), math.atan2(target.height * 0.3, d))
+        on = abs(wrap(act_yaw - yaw)) <= tol_yaw and abs(act_pitch - pitch) <= tol_pitch
+        return (not on), (yaw, pitch)  # keep holding (full charge waits up to hold_s) until on target

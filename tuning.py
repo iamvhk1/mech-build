@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "press"
+ACTIVE = "laser"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -47,6 +47,7 @@ DEFAULTS = {
     "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
     "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
     "arm.max_dist": 200.0,
+    "arm.laser_after": None,        # D3: from this match time, take a laser if no lightning is within reach
     "arm.safe_m": 50.0,             # ...only with no hunter this close           # ...including the split rule (C2c tests loot alone)
     # cube economy (master plan Stage C)
     "farm.crates": False,           # C1: shoot street-level crates and collect their cube when safe
@@ -81,11 +82,12 @@ PRESETS = {
     # + supply drops with the A1 fix (run B4) 3.46; + loot a kill's cubes (run C2c) 3.48, kept by
     # decision despite the tie (highest score so far; plausible mechanism); + crates/cubes up to 120 m
     # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept; + arm up early with a
-    # remembered lightning (run D1) 4.05
+    # remembered lightning (run D1) 4.05; + press a lone hunter into lightning range (run D2) 4.19
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True},
+             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+             "fight.press": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -224,6 +226,12 @@ PRESETS = {
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
               "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
               "fight.press": True},
+    # D3: best (with press, 4.19) + laser fallback from 45 s (with the laser aim fix in combat.py)
+    "laser": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

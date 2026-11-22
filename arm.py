@@ -63,10 +63,11 @@ class Armer:
             return None
         me = obs["self"]
         weapons = me.get("weapons") or [None, None]
-        if len(weapons) > 1 and weapons[1] is not None:
-            return None  # slot 1 is full: combat's own policy handles swaps
-        if any(w and w.get("kind") == "lightning" for w in weapons):
-            return None
+        kind1 = weapons[1].get("kind") if len(weapons) > 1 and weapons[1] else None
+        if kind1 not in (None, "laser"):
+            return None  # slot 1 holds lightning or a mortar: combat's own policy handles swaps
+        if kind1 == "laser" and float(weapons[1].get("charge", 0.0)) > 0:
+            return None  # can't swap a charging laser
         hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
         if hp < MIN_HP:
             return None
@@ -88,6 +89,21 @@ class Armer:
                     zone.time_until_outside(p["pos"]) <= d / max(1.0, walk) + ZONE_MARGIN_S:
                 continue
             best, bd = p, d
+        laser_after = tuning.get("arm.laser_after")
+        if best is None and kind1 is None and laser_after is not None and float(obs["t"]) >= float(laser_after):
+            # no lightning within reach: a laser (315 damage, instant, 280 m) beats the gun alone
+            bd = max_d
+            for p in self.known.values():
+                if p["kind"] != "laser":
+                    continue
+                d = math.dist(p["pos"][:2], pos[:2])
+                limit = bd if p["id"] != self.target_id else max(bd, max_d * KEEP_MULT)
+                if d >= limit or not self._on_street(p):
+                    continue
+                if zone is not None and getattr(zone, "known", False) and \
+                        zone.time_until_outside(p["pos"]) <= d / max(1.0, walk) + ZONE_MARGIN_S:
+                    continue
+                best, bd = p, d
         self.target_id = best["id"] if best is not None else None
         if best is not None:
             self.mode = f"arm {best['kind']} {bd:.0f}m"
