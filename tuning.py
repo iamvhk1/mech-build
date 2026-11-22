@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "rush"
+ACTIVE = "loot_more"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -46,6 +46,7 @@ DEFAULTS = {
     "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
     "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
     "pacing.split": True,
+    "pacing.loot_more": False,      # E3: loot every recent kill (30 s), and close cubes even while retreating
     "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
@@ -487,6 +488,13 @@ PRESETS = {
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
               "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 100.0},
+    # E3: best + loot every kill of the last 30 s (not only the last), and kill cubes within 30 m even
+    # while retreating (simulator replays: we fled from drops at low HP and lost the first of two kills)
+    "loot_more": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "pacing.loot_more": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

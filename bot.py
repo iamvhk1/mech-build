@@ -150,6 +150,16 @@ class Bot:
         has_target = self.combat.engage_target(targets, float(obs["t"]), gun_range, muzzle=muzzle) is not None
         return self.dropper.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, has_target)
 
+    def _retreat_loot(self, obs: dict):
+        """Kill cubes within reach while retreating (pacing.loot_more): computed once per decision."""
+        if getattr(self, "_rl_tick", None) != obs["tick"]:
+            me = obs["self"]
+            walk = float((me.get("stats") or {}).get("walk_speed", self.cfg["mech"]["walk_speed"]))
+            self._rl_tick = obs["tick"]
+            self._rl_goal = self.pacer.loot_goal(obs, self.zone, self.threats.hunters(me["pos"]), self.threats,
+                                                 self.farmer.cubes, walk, retreating=True)
+        return self._rl_goal
+
     def stuck_paused(self, strafe_xy) -> bool:
         """Pause the navigator's stuck detection only while we are actually strafing: still in a
         fight (strafe_xy) AND the strafer strafed on the previous decision. Back-and-forth jinks
@@ -238,6 +248,9 @@ class Bot:
             pickup = self.armer.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, walk)
         if t < self.evade_until and self.evade_goal is not None:
             goal, why = self.evade_goal, "evade laser"
+        elif dec.state == "retreat" and not zone_urgent and tuning.get("fight.pacing") and \
+                tuning.get("pacing.loot_more") and self._retreat_loot(obs) is not None:
+            goal, why = self._retreat_loot(obs), f"pace {self.pacer.mode} (retreating)"
         elif dec.goal is not None:
             goal = dec.goal
         elif tuning.get("fight.cover") and not zone_urgent and self.fight_goal(obs, targets) is not None:
