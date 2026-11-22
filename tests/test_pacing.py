@@ -58,8 +58,8 @@ class PacingTest(unittest.TestCase):
         b = tuning._resolve("best")
         self.assertTrue(b["fight.pacing"])
         self.assertFalse(b["pacing.split"])
-        diff = {k: v for k, v in tuning._resolve("pacing").items() if v != b[k]}
-        self.assertEqual(diff, {"pacing.split": True})
+        p, lo = tuning._resolve("pacing"), tuning._resolve("pacing_loot")
+        self.assertEqual({k: v for k, v in p.items() if v != lo[k]}, {"pacing.split": True})
 
     def test_loots_the_kill_drop(self):
         o = self.kill_at()

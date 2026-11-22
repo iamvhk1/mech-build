@@ -22,6 +22,7 @@ from farm import Farmer
 from fight import CoverFighter
 from mode import ModeDetector
 from pacing import Pacer
+from arm import Armer
 from strafe import Strafer
 from navigation import Navigator, boost_policy
 from roofs import RoofIndex
@@ -67,6 +68,7 @@ class Bot:
         self.farmer = Farmer(self.core, self.cfg)
         self.dropper = DropContester(self.core, self.cfg)
         self.pacer = Pacer(self.core, self.cfg)
+        self.armer = Armer(self.core, self.cfg, self.farmer)
         self.probe_idle = False  # diagnostics: set by probe.idle_on_pace
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
@@ -202,6 +204,7 @@ class Bot:
         self.farmer.observe(obs)
         self.dropper.observe(obs)
         self.pacer.observe(obs)
+        self.armer.observe(obs)
         self.mode_detector.observe(obs, self.zone)
         late_at = tuning.get("late.at")
         if late_at is not None and t >= float(late_at) and not tuning.is_late():
@@ -225,6 +228,9 @@ class Bot:
             if cover is not None:
                 self.evade_goal, self.evade_until = cover, t + EVADE_HOLD_S
         pickup = None if dec.retreat else self.combat.wanted_pickup(obs, targets, self.zone)
+        if pickup is None and not dec.retreat and tuning.get("arm.early"):
+            # arm up: walk to a remembered lightning beyond combat's 40 m view rule
+            pickup = self.armer.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats, walk)
         if t < self.evade_until and self.evade_goal is not None:
             goal, why = self.evade_goal, "evade laser"
         elif dec.goal is not None:

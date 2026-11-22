@@ -139,12 +139,19 @@ class Match:
         self.ammo, self.cd, self.rl = self.g["mag"], 0.0, 0.0
         self.cube_items = {}
         self.next_cube = 5000
+        self.lw = self.cfg["weapons"]["lightning"]
+        self.slot1 = None          # kind of the weapon in slot 1 (only lightning fires in this sim)
+        self.cd1 = 0.0
+        self.pickups = {}
+        kinds = ["mortar", "laser", "lightning"]
+        for i, (x, y) in enumerate(self._spawns(int(self.cfg["loot"].get("floor_count", 40)), sep0=30.0)):
+            self.pickups[8000 + i] = {"kind": kinds[i % 3], "pos": [x, y, self.core.floor_z(x, y)]}
         self.events = []
         self.last_combat_t = -1e9
         self.kills = 0
         self.zone_deaths = 0
         self.stats = {"loot": 0, "split": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
-                      "errors": 0, "cubes": 0, "error_text": ""}
+                      "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0}
         self.hit_log = []  # (t, hunter id)
         self._wrap_pacer()
 
@@ -160,11 +167,11 @@ class Match:
             return g
         p.plan = plan
 
-    def _spawns(self, n):
+    def _spawns(self, n, sep0=None):
         zc = self.cfg["zone"]
         cx, cy = zc["start_center"]
         rad = float(zc["start_radius"]) * float(self.cfg["match"].get("spawn_zone_fraction", 0.8))
-        sep = float(self.cfg["match"].get("spawn_min_separation", 130))
+        sep = float(sep0 if sep0 is not None else self.cfg["match"].get("spawn_min_separation", 130))
         out = []
         tries = 0
         while len(out) < n and tries < 20000:
@@ -215,6 +222,18 @@ class Match:
             d = math.dist(p[:2], (x, y))
             if d <= 45.0 or (d <= 200.0 and self.core.vision_los((x, y, zz + self.m["eye_height"]), (p[0], p[1], p[2] + 0.5))):
                 cubes.append({"id": cid, "pos": list(p)})
+        pickups = []
+        for pid, p in self.pickups.items():
+            d = math.dist(p["pos"][:2], (x, y))
+            if d <= 45.0 or (d <= 200.0 and self.core.vision_los((x, y, zz + self.m["eye_height"]),
+                                                                 (p["pos"][0], p["pos"][1], p["pos"][2] + 0.5))):
+                pickups.append({"id": pid, "kind": p["kind"], "pos": list(p["pos"])})
+        slot1 = None
+        if self.slot1 == "lightning":
+            slot1 = {"kind": "lightning", "cooldown": self.cd1,
+                     "stats": dict(self.lw, damage=self.lw["damage"] * self._dmg_mult())}
+        elif self.slot1 is not None:
+            slot1 = {"kind": self.slot1, "cooldown": 0.0, "stats": dict(self.cfg["weapons"][self.slot1])}
         st = dict(self.m)
         o = {"type": "obs", "tick": tick, "t": t, "alive": self.alive_count(),
              "self": {"id": 0, "pos": [x, y, zz], "vel": [0, 0, self.sim.vz], "aim": list(self.aim),
@@ -222,9 +241,9 @@ class Match:
                       "grounded": self.sim.grounded, "cubes": self.cubes, "upgrades": [],
                       "in_zone": Zone.inside(z, (x, y)),
                       "weapons": [{"kind": "gun", "cooldown": self.cd, "ammo": self.ammo, "reload": self.rl,
-                                   "stats": dict(self.g, damage=self.g["damage"] * self._dmg_mult())}, None],
+                                   "stats": dict(self.g, damage=self.g["damage"] * self._dmg_mult())}, slot1],
                       "stats": st},
-             "mechs": mechs, "projectiles": [], "crates": [], "cubes": cubes, "pickups": [], "sounds": [],
+             "mechs": mechs, "projectiles": [], "crates": [], "cubes": cubes, "pickups": pickups, "sounds": [],
              "beams": [], "events": self.events, "drops": [], "zone": z, "offer": None}
         self.events = []
         return o
@@ -258,6 +277,15 @@ class Match:
             if ez <= pz <= ez + m["height"] and u < best_u and self.core.shot_los(start, (px, py, pz)) >= 1.0:
                 best, best_u = h, u
         return best
+
+    def _kill(self, h):
+        h.alive = False
+        self.kills += 1
+        self.events.append({"type": "kill", "target": h.id})
+        for _ in range(int(self.cfg["cubes"].get("death_drop_extra", 2))):
+            self.cube_items[self.next_cube] = [h.pos[0] + self.rng.uniform(-2, 2),
+                                               h.pos[1] + self.rng.uniform(-2, 2), h.pos[2]]
+            self.next_cube += 1
 
     # ------------------------------------------------------------ squad
 
@@ -386,13 +414,47 @@ class Match:
                     h.active = True  # shooting a dormant bot wakes it
                     self.events.append({"type": "hit", "target": h.id, "amount": dmg, "weapon": "gun"})
                     if h.hp <= 0:
-                        h.alive = False
-                        self.kills += 1
-                        self.events.append({"type": "kill", "target": h.id})
-                        for _ in range(int(self.cfg["cubes"].get("death_drop_extra", 2))):
-                            self.cube_items[self.next_cube] = [h.pos[0] + self.rng.uniform(-2, 2),
-                                                               h.pos[1] + self.rng.uniform(-2, 2), h.pos[2]]
-                            self.next_cube += 1
+                        self._kill(h)
+            # take a weapon
+            tk = act.get("take")
+            if tk is not None and tk in self.pickups:
+                p = self.pickups[tk]
+                x, y, zz = self.me()
+                if math.dist(p["pos"][:2], (x, y)) <= self.cfg["loot"]["pickup_radius"] and abs(p["pos"][2] - zz) <= 4.0:
+                    if self.slot1 is None or act.get("drop") == 1:
+                        del self.pickups[tk]
+                        self.slot1 = p["kind"]
+                        self.cd1 = 1.0
+                        if p["kind"] == "lightning" and self.stats["armed_t"] is None:
+                            self.stats["armed_t"] = t
+                        self.events.append({"type": "took", "id": tk, "kind": p["kind"], "slot": 1})
+            # our lightning: nearest hunter in the cone within range, with a line
+            self.cd1 = max(0.0, self.cd1 - DT)
+            if self.slot1 == "lightning" and fire[1] and self.cd1 == 0 and self.sim.energy >= self.lw["energy"]:
+                self.cd1 = self.lw["cooldown"]
+                self.sim.energy -= self.lw["energy"]
+                self.last_combat_t = t
+                x, y, zz = self.me()
+                mz = (x, y, zz + self.m["muzzle_height"])
+                cands = []
+                for h in self.hunters:
+                    if not h.alive:
+                        continue
+                    d = math.hypot(h.pos[0] - x, h.pos[1] - y)
+                    yaw = math.atan2(h.pos[1] - y, h.pos[0] - x)
+                    in_cone = abs(wrap(yaw - self.aim[0])) <= math.radians(self.lw["cone_deg"]) / 2
+                    if d <= self.lw["range"] and in_cone and \
+                            self.core.shot_los(mz, (h.pos[0], h.pos[1], h.pos[2] + self.m["height"] / 2)) >= 1.0:
+                        cands.append((d, h))
+                if cands:
+                    h = min(cands, key=lambda c: c[0])[1]
+                    dmg = self.lw["damage"] * self._dmg_mult()
+                    h.hp -= dmg
+                    h.active = True
+                    self.stats["lightning_dmg"] += dmg
+                    self.events.append({"type": "hit", "target": h.id, "amount": dmg, "weapon": "lightning"})
+                    if h.hp <= 0:
+                        self._kill(h)
             # cube pickups
             x, y, zz = self.me()
             for cid in list(self.cube_items):
@@ -451,9 +513,12 @@ def run_preset(hello, preset, matches, seed0, max_s=480.0):
 def summary(name, rs):
     n = len(rs)
     mean = lambda k: sum(r[k] for r in rs) / n  # noqa: E731
+    armed = sum(1 for r in rs if r["armed_t"] is not None)
+    armed_t = sum(r["armed_t"] for r in rs if r["armed_t"] is not None) / max(1, armed)
     return (f"{name:14s} points {mean('points'):5.2f}  death t {mean('t'):5.0f}s  kills {mean('kills'):4.2f}  "
             f"cubes {mean('cubes'):4.1f}  ganged {mean('ganged_s'):5.1f}s  retreat {mean('retreat_s'):5.1f}s  "
             f"loot {mean('loot'):5.1f}  split {mean('split'):5.1f}  zone deaths {mean('zone_deaths'):4.2f}  "
+            f"armed {armed}/{n} (t {armed_t:4.0f}s)  lightning dmg {mean('lightning_dmg'):6.0f}  "
             f"errors {sum(r['errors'] for r in rs)}  max {max(r['max_ms'] for r in rs):5.1f} ms")
 
 

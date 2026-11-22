@@ -178,12 +178,22 @@ class DropsDoNotBlockFarmingTest(unittest.TestCase):
         finally:
             tuning.use(saved)
 
+    def without(self, preset, **changes):
+        """Actions of `preset` with some settings changed (a temporary preset)."""
+        tuning.PRESETS["_without"] = dict(tuning.PRESETS[preset], **changes)
+        try:
+            return self.actions("_without")
+        finally:
+            del tuning.PRESETS["_without"]
+
     def test_drops_preset_matches_best_before_first_drop(self):
-        self.assertEqual(self.actions("drops"), self.actions("best"))
+        """Audit A1: drops enabled, no drop yet -> exactly the same as drops disabled (farming runs)."""
+        self.assertEqual(self.actions("drops"), self.without("drops", **{"drops.enabled": False}))
+        self.assertEqual(self.actions("best"), self.without("best", **{"drops.enabled": False}))
 
     def test_probe_is_best_until_idle_time(self):
-        """Diagnostic probes play exactly like `best` before T (the recording ends before 120 s)."""
-        self.assertEqual(self.actions("probe_idle120"), self.actions("best"))
+        """Diagnostic probes play exactly like their base before T (the recording ends before 120 s)."""
+        self.assertEqual(self.actions("probe_idle120"), self.without("probe_idle120", **{"probe.idle_at": None}))
 
     def test_probe_idles_after_idle_time(self):
         tuning.PRESETS["_probe_test"] = dict(tuning.PRESETS["best"], **{"probe.idle_at": 20.0})
@@ -198,8 +208,8 @@ class DropsDoNotBlockFarmingTest(unittest.TestCase):
         self.assertTrue(any(t < 20.0 for t in ticks_t) and any(t >= 20.0 for t in ticks_t))
 
     def test_late180_is_best_before_three_minutes(self):
-        """The recording ends at 36.8 s, so late180 must act exactly like best on it."""
-        self.assertEqual(self.actions("late180"), self.actions("best"))
+        """The recording ends at 36.8 s, so late180 must act exactly like its base on it."""
+        self.assertEqual(self.actions("late180"), self.without("late180", **{"late.at": None}))
 
     def test_late_switch_turns_on_at_late_at(self):
         tuning.PRESETS["_late_test"] = dict(tuning.PRESETS["best"], **{"late.at": 20.0})

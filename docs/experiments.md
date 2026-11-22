@@ -142,7 +142,8 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 31 | `pacing` (run C2) | `c8322c6` | 3.46 | `best` + `fight.pacing` (loot a kill's cubes; split ganging hunters): an exact tie. Probe C2a showed the loot rule does fire, so the tie was the two rules cancelling, or chance. |
 | 32 | `probe_loot` (run C2a, diagnostic) | `bce0bea` | 1.60 | `pacing`, standing still from the first loot. Far below 3.46, so loot fires early and often in practice. (In the offline squad simulator: 0.95.) |
 | 33 | `pacing_loot` (run C2c) | `bf30d0b` | **3.48** | `best` + loot only (`pacing.split` off): +0.02, a tie under the rule, but the highest score so far with a plausible mechanism (kill cubes heal 4% each and add damage just before the next hunters arrive). **Kept by decision; now part of `best`.** Split stays off. |
-| 34 | `farm_reach120` (run C3) | – | pending | `best` (3.48) + look for crates and cubes up to 120 m away (was 80 m): more cubes, especially in the quiet early phase. |
+| 34 | `farm_reach120` (run C3) | `ae40d37` | **3.88** | `best` (3.48) + crates and cubes up to 120 m away (was 80 m). **First score under scorer builders-4** (96 fresh random seeds per run, see below), so not directly comparable with the fixed-seed scores above. Kept (highest score; more cubes is a sound mechanism); now part of `best`. |
+| 35 | `arm` (run D1) | – | pending | `best` + arm up early: remember every weapon pickup seen and, while slot 1 is empty and no hunter is within 50 m, walk to the nearest street-level lightning up to 200 m away. Lightning does 240 damage/s within 45 m with no aiming (the gun sustains ~100/s), and combat only took a lightning visible within 40 m: in the recorded match four were seen at 81-196 m and slot 1 stayed empty. Squad simulator: armed in 31/40 matches at ~29 s (vs 24/40 at ~70 s). |
 
 ## Batch 1 (done)
 
@@ -263,6 +264,17 @@ Worth up to 15 points per match, but only if we are alive at ~6:55.
 - Roofs: re-test only if E2's cover logic makes a specific roof variant look promising.
 
 Stage F complete! Best score remains **3.38**. Next: Stage G (tuning sweeps on `best`: engagement distance, retreat thresholds).
+
+### Scorer builders-4 (from Sun 1:00 AM, 2026-11-22)
+
+Every practice run now plays **96 fresh private random seeds** (was 48 fixed seeds), and identical
+code keeps its first builders-4 score. Consequences:
+
+- A run's score is noisy: roughly ±0.3 for one run, so a difference between two runs needs about
+  **0.5** to mean anything. The +0.05 rule is retired; only large, well-reasoned changes are worth a
+  submission.
+- Probes that relied on identical matches (idle-at-T, idle-on-first-rule) no longer work.
+- Don't resubmit trivial variants to draw luckier seeds (against the organisers' intent).
 
 ### Batch B (2026-11-22): where our points come from
 
