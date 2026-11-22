@@ -148,7 +148,8 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 36b | `press` + FFA/zone fixes | `8b5a7d5` | **4.30** | D2 plus mode detection catching gun fights between others and arm-up waiting for an urgent zone (no intended practice change). **Highest so far; picked as the final entry.** |
 | 37 | `laser` (run D3) | `f0918d6` | **4.46** | `best` (4.19) + laser fallback: from 45 s, with no lightning within reach, take the nearest street-level laser (swap it for a lightning later when one is in reach). Includes a **laser aim fix**: `laser_trigger` released on the *gun's lead* solution (at 60 m vs a 10 m/s target that's ~2.4 m off, about the target's radius); a beam is instant, so once charged it now aims straight at the target and releases when the torso is within its width. Squad simulator: laser taken in 8/60 matches, 106/133 beams hit, points 5.13 vs 4.75 (its bots don't dodge charging lasers).. **4.46, highest so far** (+0.16 over 4.30: a tie on score alone, kept for the sound mechanism). Now part of `best`; picked as final entry. |
 | 38 | `hunt` (run D4) | `f1e9cab` | **4.59** | `best` + `fight.hunt`: holding lightning, HP ≥ 70% and energy ≥ 50, when the only mech we know of is 32–250 m away, go to within 25 m of it (the early squad sends one bot at a time). Simulator can't judge it (its bots walk straight at us): 4.83 vs 4.82.. **4.59, highest so far** (+0.13, a tie on its own, but the fifth rise in a row since 3.88: the cumulative gains are real). Kept in practice; **off in free-for-all** (`FFA_OVERLAY`): looking for fights is wrong when outliving others scores. |
-| 39 | `drops_bold` (run D5) | – | pending | `best` + `drops.max_threats` 1: contest a supply drop with up to one known mech within 80 m, fighting it if needed. Simulator can't judge it (we rarely live to the drops there): 4.85 vs 4.82. |
+| 39 | `drops_bold` (run D5) | `c04de5f` | 4.36 | `best` + `drops.max_threats` 1: contest a supply drop with up to one known mech within 80 m, fighting it if needed. Simulator can't judge it (we rarely live to the drops there): 4.85 vs 4.82.. **4.36: −0.23, a tie leaning negative.** Off (simpler bot wins ties). Likely: 4 s on open ground under fire costs more than the heal returns, a second mech freezes the capture, and we often die before the 2nd drop. After five rises, this also suggests 4.59 was partly luck: the bot's level is ~4.4–4.5. |
+| 40 | `best` (final candidate) | – | pending | `best` = the 4.59 bot (hunt on in practice) with the free-for-all guard (`FFA_OVERLAY` forces `fight.hunt` off and `drops.max_threats` 0); bold drops off. The intended qualifier entry. |
 
 ## Batch 1 (done)
 
@@ -286,7 +287,8 @@ Each run is the current winner + one switch. Noise is ~±0.3 per run, so:
 | :--- | :--- | :--- | :--- |
 | 1 | D3 `laser` | `arm.laser_after` 45 (+ laser aim fix) | **4.46, kept; final entry `f0918d6`** |
 | 2 | D4 `hunt` | `fight.hunt` | **4.59, kept (practice only)** |
-| 3 | D5 `drops_bold` | `drops.max_threats` 1 (practice only) | submitted, on top of D4 (+ FFA guard) |
+| 3 | D5 `drops_bold` | `drops.max_threats` 1 (practice only) | 4.36, off |
+| 3b | final candidate `best` | — | submitted |
 | 4 | freeze, last ~1.5 h (from ~9:30 AM EST) | — | final pick = best-scoring commit at or after `8b5a7d5`; rerun tests, check.py, Docker check; confirm the pick on the track page; no new features |
 
 ### Scorer builders-4 (from Sun 1:00 AM, 2026-11-22)
