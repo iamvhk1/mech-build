@@ -184,7 +184,7 @@ class Match:
         self.last_combat_t = -1e9
         self.kills = 0
         self.zone_deaths = 0
-        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "crates": 0, "drones": 0, "los": 0, "choke": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
+        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "crates": 0, "drones": 0, "los": 0, "choke": 0, "mpc": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
                       "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0,
                       "laser_t": None, "laser_shots": 0, "laser_hits": 0, "laser_dmg": 0.0,
                       "drops_taken": 0}

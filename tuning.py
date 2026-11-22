@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "package"
+ACTIVE = "h2_mpc"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -60,6 +60,7 @@ DEFAULTS = {
     "arm.prefer_laser": False,      # G2 check: go for a laser first instead of lightning
     "fight.finish": False,          # H3: a shootable enemy below 35% HP within 45 m comes first
     "fight.arc": False,             # H2: prefer targets that keep other attackers in our front 180 deg
+    "fight.mpc": False,             # M1: with 2+ hunters, 1.2 s rollouts of 13 manoeuvres (pacing.py)
     "fight.los": False,             # R2: with 2+ hunters, step to where the fewest can see us (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
@@ -334,6 +335,13 @@ PRESETS = {
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
               "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
               "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True},
+    "h2_mpc": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True},
     "h2_roof": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,

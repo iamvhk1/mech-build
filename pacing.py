@@ -37,6 +37,9 @@ CHOKE_RANGE_M = 150.0     # choke: with 2+ known hunters this close...
 CHOKE_RINGS = (0.0, 6.0, 12.0, 20.0)   # ...look for a fighting spot this far away
 CHOKE_LANE_M = 50.0       # a lane is open if a bot this far out in that direction could shoot us
 CHOKE_HOLD_S = 3.0        # re-pick at most this often
+MPC_HORIZON_S = 1.2       # mpc: roll each manoeuvre forward this long...
+MPC_SAMPLES = (0.3, 0.6, 0.9, 1.2)   # ...scoring at these times
+MPC_REPLAN_S = 0.3
 LOS_STEP_M = 7.0          # los steering: candidate spots this far away in 16 directions
 LOS_RANGE_M = 110.0       # ...counting fresh hunters this close
 HUNT_MIN_HP = 0.70        # hunt: go after the only mech we know of (the squad sends one at a time early)
@@ -150,6 +153,68 @@ class Pacer:
         self.choke, self.choke_t = (best[0], best[1]), t
         self.mode = f"choke {best_s:.1f}"
         return self.choke
+
+    def _mpc_goal(self, me: dict, pos, hunters, tt: float, zone, walk: float, t: float):
+        if getattr(self, "_mpc_t", -1e9) > t - MPC_REPLAN_S and getattr(self, "_mpc_goal_xy", None) is not None:
+            self.mode = "mpc hold"
+            return self._mpc_goal_xy
+        st = me.get("stats") or {}
+        r = float(st.get("radius", 2.5))
+        h = float(st.get("height", 9.0))
+        eye = float(self.cfg["mech"].get("eye_height", 8.0))
+        mh = float(st.get("muzzle_height", 7.0))
+        weapons = [w.get("kind") for w in (me.get("weapons") or []) if w]
+        have_light = "lightning" in weapons
+        light_rng = float(self.cfg["weapons"]["lightning"].get("range", 45.0))
+        speed = float(st.get("walk_speed", walk))
+        enemies = []
+        for hh in hunters:
+            p = hh.pos_at(tt)
+            v = getattr(hh, "vel", [0.0, 0.0, 0.0])
+            ws = list(getattr(hh, "weapons", []) or ["gun"])
+            dps = 100.0 + (240.0 if "lightning" in ws else 0.0) + (130.0 if "laser" in ws else 0.0)
+            enemies.append((p, v, dps, "lightning" in ws))
+        nearest = min(enemies, key=lambda e: math.dist(e[0][:2], pos[:2]))
+
+        def score_path(end):
+            total = 0.0
+            for s_t in MPC_SAMPLES:
+                f = s_t / MPC_HORIZON_S
+                q = (pos[0] + (end[0] - pos[0]) * f, pos[1] + (end[1] - pos[1]) * f)
+                z = self.core.floor_z(q[0], q[1])
+                taken = dealt = 0.0
+                for (p, v, dps, light) in enemies:
+                    ep = (p[0] + v[0] * s_t, p[1] + v[1] * s_t)
+                    ez = self.core.floor_z(ep[0], ep[1])
+                    d = math.dist(ep, q)
+                    sees = self.core.shot_los((ep[0], ep[1], ez + eye), (q[0], q[1], z + h * 0.5)) >= 1.0
+                    if sees:
+                        taken += (100.0 + (240.0 if (light and d <= light_rng) else 0.0)
+                                  + (dps - 100.0 - (240.0 if light else 0.0))) * (0.9 if d <= 60 else 0.6)
+                        dealt += 100.0 * (0.9 if d <= 60 else 0.6) + (240.0 if (have_light and d <= light_rng) else 0.0)
+                total += dealt - 1.2 * taken
+            return total
+
+        best, best_s = None, -math.inf
+        cands = [(pos[0], pos[1])]
+        reach = speed * MPC_HORIZON_S
+        for k in range(12):
+            a = 2 * math.pi * k / 12
+            q = self.core.nearest_walkable(pos[0] + reach * math.cos(a), pos[1] + reach * math.sin(a), r, False)
+            if q is None or math.dist(q, pos[:2]) > reach + 3.0:
+                continue
+            if not self.core.segment_walkable((pos[0], pos[1]), q, r * 0.9):
+                continue
+            if not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
+                continue
+            cands.append((q[0], q[1]))
+        for c in cands:
+            s = score_path(c) - 0.02 * math.dist(c, nearest[0][:2])
+            if s > best_s:
+                best, best_s = c, s
+        self._mpc_t, self._mpc_goal_xy = t, best
+        self.mode = f"mpc {best_s:.0f}"
+        return best
 
     def _exposure(self, xy, eyes, h: float) -> int:
         z = self.core.floor_z(xy[0], xy[1])
@@ -277,6 +342,13 @@ class Pacer:
                 g = self._choke_goal(me, pos, near, zone, walk, t)
                 if g is not None:
                     return g
+
+        # 4a) MPC: with 2+ hunters close, roll 12 manoeuvres + "stay" forward 1.2 s and take the one with
+        # the best predicted damage dealt minus damage taken (enemies advance along their velocity)
+        if tuning.get("fight.mpc") and len(fresh) >= 2 and self.core is not None:
+            g = self._mpc_goal(me, pos, fresh, tt, zone, walk, t)
+            if g is not None:
+                return g
 
         # 4b) line-of-sight steering: with 2+ hunters able to shoot us, step to the nearby spot where the
         # fewest can (ideally one: our lightning works on it while a building blocks the rest)
