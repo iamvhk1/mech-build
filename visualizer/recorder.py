@@ -256,6 +256,7 @@ def record_squad(seed: int = 42, preset: str = "best") -> dict:
                 }
                 for d in m.drops
             ],
+            "beams": [],
             "events": obs.get("events") or []
         }
         frames.append(frame)

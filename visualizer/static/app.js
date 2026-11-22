@@ -46,6 +46,7 @@
     hunters: true,
     drops: true,
     economy: true,
+    minimap: true,
   };
 
   // Mouse inspection
@@ -309,12 +310,23 @@
       drawHeroMech(frame.self);
     }
 
-    // 7. Beams & Projectiles
-    if (frame.beams) {
-      drawBeams(frame.beams);
+    // 7. Weapon Fire, Lightning Arcs & Projectiles
+    drawAttacks(frame);
+
+    // 8. Damage Popups & Kill Indicators
+    drawDamagePopups(frame);
+
+    // 9. Zone Off-screen Directional Guide
+    if (layers.zone && frame.zone) {
+      drawZoneCompass(frame);
     }
 
-    // 8. Hover Highlight & Tooltip
+    // 10. Tactical Minimap Radar
+    if (layers.minimap) {
+      drawMinimap(frame);
+    }
+
+    // 11. Hover Highlight & Tooltip
     drawHoverInspection();
   }
 
@@ -327,16 +339,16 @@
     ctx.beginPath();
     ctx.rect(0, 0, canvas.width, canvas.height);
     ctx.arc(cur.x, cur.y, Math.max(0, curR), 0, Math.PI * 2, true);
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.14)';
     ctx.fill();
 
-    // Current zone ring
+    // Current zone ring (solid bright cyan)
     ctx.beginPath();
     ctx.arc(cur.x, cur.y, Math.max(0, curR), 0, Math.PI * 2);
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#38bdf8';
-    ctx.shadowColor = '#38bdf8';
-    ctx.shadowBlur = 8;
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = '#00e5ff';
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 12;
     ctx.stroke();
     ctx.restore();
 
@@ -346,18 +358,40 @@
       const nxtR = zone.next_radius * scale;
 
       ctx.save();
+      // Shrink vector arrow from current center to next center
+      const cDist = Math.hypot(nxt.x - cur.x, nxt.y - cur.y);
+      if (cDist > 12) {
+        ctx.beginPath();
+        ctx.moveTo(cur.x, cur.y);
+        ctx.lineTo(nxt.x, nxt.y);
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Next zone ring
       ctx.beginPath();
       ctx.arc(nxt.x, nxt.y, Math.max(0, nxtR), 0, Math.PI * 2);
-      ctx.setLineDash([8, 6]);
-      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 6]);
+      ctx.lineWidth = 2.5;
       ctx.strokeStyle = '#f59e0b';
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 8;
       ctx.stroke();
 
       // Next center mark
       ctx.beginPath();
-      ctx.arc(nxt.x, nxt.y, 4, 0, Math.PI * 2);
+      ctx.arc(nxt.x, nxt.y, 5, 0, Math.PI * 2);
       ctx.fillStyle = '#f59e0b';
       ctx.fill();
+
+      // Label
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle = '#fbbf24';
+      ctx.textAlign = 'center';
+      ctx.fillText(`NEXT SAFE CIRCLE (R: ${zone.next_radius.toFixed(0)}m)`, nxt.x, nxt.y - nxtR - 8);
       ctx.restore();
     }
   }
@@ -640,13 +674,533 @@
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = b.kind === 'laser' ? '#38bdf8' : '#facc15';
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = b.kind === 'laser' ? '#00f0ff' : '#facc15';
       ctx.shadowColor = ctx.strokeStyle;
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 12;
       ctx.stroke();
       ctx.restore();
     });
+  }
+
+  function drawAttacks(frame) {
+    if (!frame || !frame.self) return;
+    const hero = frame.self;
+    const sHero = worldToScreen(hero.pos[0], hero.pos[1]);
+    const aimYaw = hero.aim ? hero.aim[0] : 0;
+    const events = frame.events || [];
+    const mechs = frame.mechs || [];
+
+    // 1. Hero Machine Gun Firing
+    const gunFired = Boolean(hero.act && hero.act.fire && hero.act.fire[0]);
+    const gunHit = events.find((e) => e.type === 'hit' && (e.weapon === 'gun' || !e.weapon));
+
+    if (gunFired || gunHit) {
+      let targetPos = null;
+      if (gunHit) {
+        const hitMech = mechs.find((m) => m.id === gunHit.target);
+        if (hitMech) targetPos = worldToScreen(hitMech.pos[0], hitMech.pos[1]);
+      }
+      if (!targetPos) {
+        // Nearest enemy in aim cone or 65m forward
+        let closestH = null, closestDist = 75.0;
+        mechs.forEach((m) => {
+          if (!m.alive) return;
+          const d = Math.hypot(m.pos[0] - hero.pos[0], m.pos[1] - hero.pos[1]);
+          if (d < closestDist) {
+            const angle = Math.atan2(m.pos[1] - hero.pos[1], m.pos[0] - hero.pos[0]);
+            let diff = Math.abs(angle - aimYaw);
+            while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
+            if (diff < 0.45) {
+              closestDist = d;
+              closestH = m;
+            }
+          }
+        });
+        if (closestH) {
+          targetPos = worldToScreen(closestH.pos[0], closestH.pos[1]);
+        } else {
+          targetPos = {
+            x: sHero.x + Math.cos(aimYaw) * 65 * scale,
+            y: sHero.y - Math.sin(aimYaw) * 65 * scale,
+          };
+        }
+      }
+
+      ctx.save();
+      // Muzzle Flash star
+      const muzzX = sHero.x + Math.cos(aimYaw) * 12;
+      const muzzY = sHero.y - Math.sin(aimYaw) * 12;
+      ctx.beginPath();
+      ctx.arc(muzzX, muzzY, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#fef08a';
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+
+      // Gun Tracer Line
+      ctx.beginPath();
+      ctx.moveTo(muzzX, muzzY);
+      ctx.lineTo(targetPos.x, targetPos.y);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#fef08a';
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+
+      // Secondary tracer glow
+      ctx.beginPath();
+      ctx.moveTo(muzzX, muzzY);
+      ctx.lineTo(targetPos.x, targetPos.y);
+      ctx.lineWidth = 1.0;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Impact Sparks
+      for (let i = 0; i < 5; i++) {
+        const spAngle = Math.random() * Math.PI * 2;
+        const spLen = 4 + Math.random() * 8;
+        ctx.beginPath();
+        ctx.moveTo(targetPos.x, targetPos.y);
+        ctx.lineTo(targetPos.x + Math.cos(spAngle) * spLen, targetPos.y + Math.sin(spAngle) * spLen);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 2. Aux Weapon (Slot 1): Lightning Arc or Laser Beam
+    const slot1 = (hero.weapons && hero.weapons[1] ? hero.weapons[1].kind : null) || 'lightning';
+    const auxFired = Boolean(hero.act && hero.act.fire && hero.act.fire[1]);
+    const lightningHit = events.find((e) => e.type === 'hit' && e.weapon === 'lightning');
+    const laserHit = events.find((e) => e.type === 'hit' && e.weapon === 'laser');
+
+    // Lightning Discharge
+    if ((auxFired && slot1 === 'lightning') || lightningHit) {
+      let targetMech = null;
+      if (lightningHit) {
+        targetMech = mechs.find((m) => m.id === lightningHit.target);
+      }
+      if (!targetMech) {
+        let minDist = 48.0;
+        mechs.forEach((m) => {
+          if (!m.alive) return;
+          const d = Math.hypot(m.pos[0] - hero.pos[0], m.pos[1] - hero.pos[1]);
+          if (d < minDist) {
+            const angle = Math.atan2(m.pos[1] - hero.pos[1], m.pos[0] - hero.pos[0]);
+            let diff = Math.abs(angle - aimYaw);
+            while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
+            if (diff <= (20 * Math.PI) / 180) {
+              minDist = d;
+              targetMech = m;
+            }
+          }
+        });
+      }
+
+      const endPos = targetMech
+        ? worldToScreen(targetMech.pos[0], targetMech.pos[1])
+        : { x: sHero.x + Math.cos(aimYaw) * 45 * scale, y: sHero.y - Math.sin(aimYaw) * 45 * scale };
+
+      drawElectricArc(sHero.x, sHero.y, endPos.x, endPos.y, frame.tick);
+    }
+
+    // Laser Sniper Beam
+    if ((auxFired && slot1 === 'laser') || laserHit) {
+      let endPos = null;
+      if (laserHit) {
+        const hitMech = mechs.find((m) => m.id === laserHit.target);
+        if (hitMech) endPos = worldToScreen(hitMech.pos[0], hitMech.pos[1]);
+      }
+      if (!endPos) {
+        endPos = {
+          x: sHero.x + Math.cos(aimYaw) * 230 * scale,
+          y: sHero.y - Math.sin(aimYaw) * 230 * scale,
+        };
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(sHero.x, sHero.y);
+      ctx.lineTo(endPos.x, endPos.y);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 18;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(sHero.x, sHero.y);
+      ctx.lineTo(endPos.x, endPos.y);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3. Enemy Hunter Gunfire (incoming tracer on damaged event)
+    const damagedEvents = events.filter((e) => e.type === 'damaged');
+    damagedEvents.forEach((dmg) => {
+      const hunter = mechs.find((m) => m.id === dmg.by);
+      if (hunter) {
+        const sHunter = worldToScreen(hunter.pos[0], hunter.pos[1]);
+        ctx.save();
+        // Hunter muzzle flash
+        ctx.beginPath();
+        ctx.arc(sHunter.x, sHunter.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ef4444';
+        ctx.shadowColor = '#f87171';
+        ctx.shadowBlur = 12;
+        ctx.fill();
+
+        // Incoming red bullet tracer
+        ctx.beginPath();
+        ctx.moveTo(sHunter.x, sHunter.y);
+        ctx.lineTo(sHero.x, sHero.y);
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = '#f87171';
+        ctx.shadowColor = '#ef4444';
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+
+        // Hero impact flash
+        ctx.beginPath();
+        ctx.arc(sHero.x, sHero.y, 12, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+
+    // 4. Server stream beams
+    if (frame.beams && frame.beams.length > 0) {
+      drawBeams(frame.beams);
+    }
+  }
+
+  function drawElectricArc(x1, y1, x2, y2, seed) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 4) return;
+
+    const segments = Math.max(6, Math.min(16, Math.floor(dist / 14)));
+    const nx = -dy / dist;
+    const ny = dx / dist;
+
+    const pts = [{ x: x1, y: y1 }];
+    for (let i = 1; i < segments; i++) {
+      const frac = i / segments;
+      const jitterVal = Math.sin((seed || 1) * 31.7 + i * 17.3 + currentFrameIdx * 1.5) * 14;
+      pts.push({
+        x: x1 + dx * frac + nx * jitterVal,
+        y: y1 + dy * frac + ny * jitterVal,
+      });
+    }
+    pts.push({ x: x2, y: y2 });
+
+    ctx.save();
+    // Muzzle discharge flash
+    ctx.beginPath();
+    ctx.arc(x1, y1, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef08a';
+    ctx.shadowColor = '#facc15';
+    ctx.shadowBlur = 16;
+    ctx.fill();
+
+    // Pass 1: Outer electric glow
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+    ctx.shadowColor = '#facc15';
+    ctx.shadowBlur = 18;
+    ctx.stroke();
+
+    // Pass 2: Main core bolt
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fef08a';
+    ctx.stroke();
+
+    // Pass 3: White hot center
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
+    // Secondary fork branch
+    if (pts.length > 5) {
+      const midIdx = Math.floor(pts.length / 2);
+      const bStart = pts[midIdx];
+      const bEnd = {
+        x: bStart.x + (nx * 20 + dx / segments) * 0.75,
+        y: bStart.y + (ny * 20 + dy / segments) * 0.75,
+      };
+      ctx.beginPath();
+      ctx.moveTo(bStart.x, bStart.y);
+      ctx.lineTo(bEnd.x, bEnd.y);
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = '#fef08a';
+      ctx.stroke();
+    }
+
+    // Impact blast ring on target
+    ctx.beginPath();
+    ctx.arc(x2, y2, 14, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(250, 204, 21, 0.35)';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#facc15';
+    ctx.shadowColor = '#facc15';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawDamagePopups(frame) {
+    const events = frame.events || [];
+    const mechs = frame.mechs || [];
+
+    events.forEach((e) => {
+      if (e.type === 'hit') {
+        const target = mechs.find((m) => m.id === e.target);
+        if (target) {
+          const s = worldToScreen(target.pos[0], target.pos[1]);
+          ctx.save();
+          ctx.font = 'bold 12px monospace';
+          ctx.fillStyle = e.weapon === 'lightning' ? '#facc15' : '#fb923c';
+          ctx.shadowColor = '#000';
+          ctx.shadowBlur = 5;
+          ctx.textAlign = 'center';
+          const txt = `-${(e.amount || 24).toFixed(0)} HP`;
+          ctx.fillText(txt, s.x, s.y - 20);
+          ctx.restore();
+        }
+      } else if (e.type === 'damaged') {
+        if (frame.self) {
+          const s = worldToScreen(frame.self.pos[0], frame.self.pos[1]);
+          ctx.save();
+          ctx.font = 'bold 12px monospace';
+          ctx.fillStyle = '#ef4444';
+          ctx.shadowColor = '#000';
+          ctx.shadowBlur = 5;
+          ctx.textAlign = 'center';
+          ctx.fillText(`-${(e.amount || 18).toFixed(0)} HP`, s.x, s.y - 24);
+          ctx.restore();
+        }
+      } else if (e.type === 'kill') {
+        const target = mechs.find((m) => m.id === e.target);
+        if (target) {
+          const s = worldToScreen(target.pos[0], target.pos[1]);
+          ctx.save();
+          ctx.font = 'bold 13px monospace';
+          ctx.fillStyle = '#ef4444';
+          ctx.shadowColor = '#f87171';
+          ctx.shadowBlur = 10;
+          ctx.textAlign = 'center';
+          ctx.fillText('☠ ELIMINATED', s.x, s.y - 32);
+          ctx.restore();
+        }
+      }
+    });
+  }
+
+  function drawZoneCompass(frame) {
+    const zone = frame.zone;
+    if (!zone || !zone.next_radius || zone.next_radius <= 0) return;
+
+    const nxtS = worldToScreen(zone.next_center[0], zone.next_center[1]);
+    const pad = 40;
+    const isOffScreen = nxtS.x < pad || nxtS.x > canvas.width - pad || nxtS.y < pad || nxtS.y > canvas.height - pad;
+
+    if (!isOffScreen) return;
+
+    // Center of screen
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const angle = Math.atan2(nxtS.y - cy, nxtS.x - cx);
+
+    // Clamp indicator to viewport border
+    const edgeDistX = (canvas.width / 2) - pad - 30;
+    const edgeDistY = (canvas.height / 2) - pad - 60;
+    const scaleX = Math.abs(edgeDistX / Math.cos(angle));
+    const scaleY = Math.abs(edgeDistY / Math.sin(angle));
+    const distToEdge = Math.min(scaleX, scaleY);
+
+    const indX = cx + Math.cos(angle) * distToEdge;
+    const indY = cy + Math.sin(angle) * distToEdge;
+
+    // World distance to next center
+    const botX = frame.self ? frame.self.pos[0] : 0;
+    const botY = frame.self ? frame.self.pos[1] : 0;
+    const dWorld = Math.hypot(zone.next_center[0] - botX, zone.next_center[1] - botY);
+
+    ctx.save();
+    // Indicator Pill
+    ctx.translate(indX, indY);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(-65, -14, 130, 28, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Direction arrow
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(55, 0);
+    ctx.lineTo(45, -5);
+    ctx.lineTo(45, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`NEXT ZONE: ${dWorld.toFixed(0)}m`, -6, 0);
+    ctx.restore();
+  }
+
+  const MINIMAP = {
+    w: 180,
+    h: 122,
+    pad: 16,
+  };
+
+  function getMinimapBounds() {
+    return {
+      x: canvas.width - MINIMAP.w - MINIMAP.pad,
+      y: canvas.height - MINIMAP.h - MINIMAP.pad - 60,
+      w: MINIMAP.w,
+      h: MINIMAP.h,
+    };
+  }
+
+  function worldToMinimap(wx, wy, mb) {
+    const fx = (wx - ARENA.min_x) / ARENA.width_m;
+    const fy = (ARENA.max_y - wy) / ARENA.height_m;
+    return {
+      x: mb.x + fx * mb.w,
+      y: mb.y + fy * mb.h,
+    };
+  }
+
+  function minimapToWorld(mx, my, mb) {
+    const fx = (mx - mb.x) / mb.w;
+    const fy = (my - mb.y) / mb.h;
+    return {
+      x: ARENA.min_x + fx * ARENA.width_m,
+      y: ARENA.max_y - fy * ARENA.height_m,
+    };
+  }
+
+  function drawMinimap(frame) {
+    const mb = getMinimapBounds();
+
+    ctx.save();
+    // Radar background
+    ctx.fillStyle = 'rgba(12, 14, 20, 0.9)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
+    ctx.strokeRect(mb.x, mb.y, mb.w, mb.h);
+
+    // Title
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText('TACTICAL RADAR', mb.x + 6, mb.y + 12);
+
+    // Zone circles
+    if (frame.zone) {
+      const cur = worldToMinimap(frame.zone.center[0], frame.zone.center[1], mb);
+      const curR = (frame.zone.radius / ARENA.width_m) * mb.w;
+
+      // Current safe zone
+      ctx.beginPath();
+      ctx.arc(cur.x, cur.y, Math.max(0, curR), 0, Math.PI * 2);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#00e5ff';
+      ctx.stroke();
+
+      // Next zone
+      if (frame.zone.next_radius && frame.zone.next_radius > 0) {
+        const nxt = worldToMinimap(frame.zone.next_center[0], frame.zone.next_center[1], mb);
+        const nxtR = (frame.zone.next_radius / ARENA.width_m) * mb.w;
+        ctx.beginPath();
+        ctx.arc(nxt.x, nxt.y, Math.max(0, nxtR), 0, Math.PI * 2);
+        ctx.setLineDash([3, 2]);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Camera Viewport Box
+    const tl = screenToWorld(0, 0);
+    const br = screenToWorld(canvas.width, canvas.height);
+    const mTL = worldToMinimap(tl.x, tl.y, mb);
+    const mBR = worldToMinimap(br.x, br.y, mb);
+    ctx.beginPath();
+    ctx.rect(mTL.x, mTL.y, mBR.x - mTL.x, mBR.y - mTL.y);
+    ctx.setLineDash([2, 2]);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Drops
+    (frame.drops || []).forEach((d) => {
+      const p = worldToMinimap(d.pos[0], d.pos[1], mb);
+      ctx.fillStyle = '#c084fc';
+      ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    });
+
+    // Hunters
+    (frame.mechs || []).forEach((h) => {
+      if (!h.alive) return;
+      const p = worldToMinimap(h.pos[0], h.pos[1], mb);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, h.active ? 2.5 : 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = h.active ? '#ef4444' : '#64748b';
+      ctx.fill();
+    });
+
+    // Hero Mech
+    if (frame.self) {
+      const p = worldToMinimap(frame.self.pos[0], frame.self.pos[1], mb);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#38bdf8';
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+
+      // Heading tick
+      const yaw = frame.self.aim ? frame.self.aim[0] : 0;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + Math.cos(yaw) * 6, p.y - Math.sin(yaw) * 6);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   function drawHoverInspection() {
@@ -797,6 +1351,11 @@
         updateFollowBtn();
       } else if (e.code === 'KeyR') {
         resetCameraView();
+      } else if (e.code === 'KeyM') {
+        layers.minimap = !layers.minimap;
+        const cb = document.getElementById('layerMinimap');
+        if (cb) cb.checked = layers.minimap;
+        requestRedraw();
       }
     });
   }
@@ -856,11 +1415,30 @@
     bindToggle('layerHunters', 'hunters');
     bindToggle('layerDrops', 'drops');
     bindToggle('layerEconomy', 'economy');
+    bindToggle('layerMinimap', 'minimap');
   }
 
   function setupCanvasInteractions() {
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // Minimap click navigation
+        if (layers.minimap) {
+          const mb = getMinimapBounds();
+          if (clickX >= mb.x && clickX <= mb.x + mb.w && clickY >= mb.y && clickY <= mb.y + mb.h) {
+            const target = minimapToWorld(clickX, clickY, mb);
+            camX = target.x;
+            camY = target.y;
+            followBot = false;
+            updateFollowBtn();
+            requestRedraw();
+            return;
+          }
+        }
+
         isDragging = true;
         dragStartX = e.clientX;
         dragStartY = e.clientY;
