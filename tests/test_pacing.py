@@ -115,6 +115,23 @@ class PacingTest(unittest.TestCase):
         tuning.use("best")
         self.assertIsNone(self.plan(self.lightning_obs([aimed(6, (70, 0, 0))], t=54.0)))
 
+    def test_hunt_goes_after_the_only_known_mech(self):
+        tuning.use("hunt")
+        o = self.lightning_obs([mech(6, (150, 0, 0))])  # seen, not hunting us, 150 m away
+        g = self.plan(o)
+        self.assertIsNotNone(g)
+        self.assertTrue(self.p.mode.startswith("hunt"))
+        self.assertAlmostEqual(g[0], 125.0, delta=0.5)
+
+    def test_no_hunt_with_two_known_mechs_without_lightning_or_switch_off(self):
+        tuning.use("hunt")
+        self.assertIsNone(self.plan(self.lightning_obs([mech(6, (150, 0, 0)), mech(7, (-200, 0, 0))])))
+        self.th = ThreatTracker()
+        self.assertIsNone(self.plan(self.step(make_obs((0, 0, 0), mechs=[mech(6, (150, 0, 0))], t=60.0))))
+        self.th = ThreatTracker()
+        tuning.use("best")
+        self.assertIsNone(self.plan(self.lightning_obs([mech(6, (150, 0, 0))], t=61.0)))
+
     def test_no_split_into_the_zone(self):
         o = self.step(make_obs((0, 0, 0), mechs=[aimed(6, (40, 0, 0)), aimed(7, (0, 80, 0))], t=50.0))
         self.assertIsNone(self.plan(o, zone=FakeZone(left=1.0)))

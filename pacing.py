@@ -31,6 +31,8 @@ PRESS_FROM_M = 32.0       # ...when it is farther than this
 PRESS_MAX_M = 90.0        # ...and not farther than this
 PRESS_MIN_HP = 0.50
 PRESS_MIN_ENERGY = 35.0   # ~4 s of arcs (3 energy per 0.25 s shot)
+HUNT_MIN_HP = 0.70        # hunt: go after the only mech we know of (the squad sends one at a time early)
+HUNT_MIN_ENERGY = 50.0
 
 
 class Pacer:
@@ -102,7 +104,28 @@ class Pacer:
                     self.mode = f"press {h.id} {d:.0f}m"
                     return goal
 
-        # 3) split the hunters
+        # 3) hunt: the only mech we know of (tracked, hunting us or not), up to hunt.max_m away; the
+        # early squad sends one bot at a time, so walking to it instead of waiting speeds up kills
+        if tuning.get("fight.hunt") and hp >= HUNT_MIN_HP and \
+                float(me.get("energy", 0.0)) >= HUNT_MIN_ENERGY and \
+                any(w and w.get("kind") == "lightning" for w in (me.get("weapons") or [])):
+            tracks = list(getattr(threats, "tracks", {}).values())
+            if len(tracks) == 1:
+                tr = tracks[0]
+                p = tr.pos_at(tt)
+                d = math.dist(p[:2], pos[:2])
+                if PRESS_FROM_M < d <= float(tuning.get("hunt.max_m")):
+                    ux, uy = (pos[0] - p[0]) / d, (pos[1] - p[1]) / d
+                    goal = (p[0] + ux * PRESS_TO_M, p[1] + uy * PRESS_TO_M)
+                    if self.core is not None:
+                        r = float((me.get("stats") or {}).get("radius", 2.5))
+                        q = self.core.nearest_walkable(goal[0], goal[1], r, False)
+                        goal = (q[0], q[1]) if q is not None else None
+                    if goal is not None and self._zone_ok(zone, goal, pos, walk):
+                        self.mode = f"hunt {tr.id} {d:.0f}m"
+                        return goal
+
+        # 4) split the hunters
         if tuning.get("pacing.split") and len(fresh) >= 2:
             fresh.sort(key=lambda h: math.dist(h.pos_at(tt)[:2], pos[:2]))
             rest = [h.pos_at(tt) for h in fresh[1:]]

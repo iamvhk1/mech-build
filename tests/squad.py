@@ -143,6 +143,10 @@ class Match:
         self.slot1 = None          # kind of the weapon in slot 1 (lightning and laser fire in this sim)
         self.cd1 = 0.0
         self.lz = self.cfg["weapons"]["laser"]
+        dc = self.cfg["drops"]
+        self.drops = []   # dicts: id, pos, call_t, land_t, progress
+        self.drop_calls = list(dc["times"])
+        self.next_drop = 20000
         self.charge = 0.0
         self.held_full = 0.0
         self.pickups = {}
@@ -153,9 +157,10 @@ class Match:
         self.last_combat_t = -1e9
         self.kills = 0
         self.zone_deaths = 0
-        self.stats = {"loot": 0, "split": 0, "press": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
+        self.stats = {"loot": 0, "split": 0, "press": 0, "hunt": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
                       "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0,
-                      "laser_t": None, "laser_shots": 0, "laser_hits": 0, "laser_dmg": 0.0}
+                      "laser_t": None, "laser_shots": 0, "laser_hits": 0, "laser_dmg": 0.0,
+                      "drops_taken": 0}
         self.hit_log = []  # (t, hunter id)
         self._wrap_pacer()
 
@@ -251,7 +256,11 @@ class Match:
                                    "stats": dict(self.g, damage=self.g["damage"] * self._dmg_mult())}, slot1],
                       "stats": st},
              "mechs": mechs, "projectiles": [], "crates": [], "cubes": cubes, "pickups": pickups, "sounds": [],
-             "beams": [], "events": self.events, "drops": [], "zone": z, "offer": None}
+             "beams": [], "events": self.events,
+             "drops": [{"id": d["id"], "pos": list(d["pos"]), "radius": self.cfg["drops"]["radius"],
+                        "lands_in": max(0.0, d["land_t"] - t), "capture_s": self.cfg["drops"]["capture_s"],
+                        "progress": d["progress"], "holder": 0 if d["progress"] > 0 else None} for d in self.drops],
+             "zone": z, "offer": None}
         self.events = []
         return o
 
@@ -519,6 +528,39 @@ class Match:
             if len(recent) >= 2:
                 self.stats["ganged_s"] += DT
             self.hit_log = [e for e in self.hit_log if t - e[0] <= 2.0]
+            # supply drops: called on schedule, land fall_s later inside the next circle; we capture
+            # by standing in the ring alone for capture_s (house bots don't contest in this sim)
+            dc = self.cfg["drops"]
+            if self.drop_calls and t >= self.drop_calls[0]:
+                self.drop_calls.pop(0)
+                for _ in range(50):
+                    a = self.rng.uniform(0, 2 * math.pi)
+                    rr = z["next_radius"] * dc.get("spread", 0.7) * math.sqrt(self.rng.random())
+                    q = self.core.nearest_walkable(z["next_center"][0] + rr * math.cos(a),
+                                                   z["next_center"][1] + rr * math.sin(a), 3.0, True)
+                    if q is not None:
+                        self.drops.append({"id": self.next_drop, "pos": [q[0], q[1], self.core.floor_z(*q)],
+                                           "land_t": t + dc["fall_s"], "progress": 0.0})
+                        self.next_drop += 1
+                        break
+            for d in list(self.drops):
+                inside_ring = math.dist(d["pos"][:2], (x, y)) <= dc["radius"]
+                rivals = any(h.alive and math.dist(h.pos[:2], d["pos"][:2]) <= dc["radius"] for h in self.hunters)
+                if t >= d["land_t"] and inside_ring and not rivals:
+                    d["progress"] += DT
+                    if d["progress"] >= dc["capture_s"]:
+                        self.drops.remove(d)
+                        self.stats["drops_taken"] += 1
+                        for _ in range(int(dc["cubes"])):
+                            self.cubes += 1
+                            if self.cubes <= self.cfg["cubes"]["stat_cap"]:
+                                gain = float(self.m["hp"]) * float(self.cfg["cubes"]["hp_per_cube"])
+                                self.max_hp += gain
+                        self.hp = self.max_hp
+                        self.sim.energy = self.m["energy"]
+                        self.events.append({"type": "drop", "id": d["id"], "cubes": self.cubes})
+                elif not inside_ring:
+                    d["progress"] = 0.0
             # zone and regen
             inside = Zone.inside(z, (x, y))
             if not inside:
@@ -563,6 +605,7 @@ def summary(name, rs):
             f"loot {mean('loot'):5.1f}  split {mean('split'):5.1f}  press {mean('press'):5.1f}  zone deaths {mean('zone_deaths'):4.2f}  "
             f"armed {armed}/{n} (t {armed_t:4.0f}s)  lightning dmg {mean('lightning_dmg'):6.0f}  "
             f"laser {lasered}/{n} hits {hits}/{shots} dmg {mean('laser_dmg'):5.0f}  "
+            f"drops {mean('drops_taken'):4.2f}  hunt {mean('hunt'):5.1f}  "
             f"errors {sum(r['errors'] for r in rs)}  max {max(r['max_ms'] for r in rs):5.1f} ms")
 
 

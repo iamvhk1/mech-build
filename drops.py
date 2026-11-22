@@ -45,25 +45,20 @@ class DropContester:
             self.mode = ""
 
     def is_safe(self, me_pos: Sequence[float], drop_pos: Sequence[float], hunters, threats, has_target: bool) -> bool:
-        """Safe to contest drop: no active combat target, no hunters or enemy mechs within safe distance."""
-        if has_target:
+        """Safe to contest drop: at most `drops.max_threats` known mechs (hunters or tracks) within
+        safe distance of us or the drop; with max_threats 0 (default) also no active combat target."""
+        allowed = int(tuning.get("drops.max_threats"))
+        if has_target and allowed == 0:
             return False
         safe_m = float(tuning.get("drops.safe_m"))
         t = getattr(threats, "t", 0.0)
-        for h in hunters:
-            hp = h.pos_at(t)
-            if math.hypot(hp[0] - me_pos[0], hp[1] - me_pos[1]) <= safe_m:
-                return False
-            if math.hypot(hp[0] - drop_pos[0], hp[1] - drop_pos[1]) <= safe_m:
-                return False
-        tracks = getattr(threats, "tracks", {})
-        for tr in tracks.values():
-            tp = tr.pos_at(t)
-            if math.hypot(tp[0] - me_pos[0], tp[1] - me_pos[1]) <= safe_m:
-                return False
-            if math.hypot(tp[0] - drop_pos[0], tp[1] - drop_pos[1]) <= safe_m:
-                return False
-        return True
+        near = set()
+        for h in list(hunters) + list(getattr(threats, "tracks", {}).values()):
+            p = h.pos_at(t)
+            if math.hypot(p[0] - me_pos[0], p[1] - me_pos[1]) <= safe_m or \
+                    math.hypot(p[0] - drop_pos[0], p[1] - drop_pos[1]) <= safe_m:
+                near.add(h.id)
+        return len(near) <= allowed
 
     def plan(self, obs: dict, zone, hunters, threats, has_target: bool) -> Optional[Tuple[float, float]]:
         """Return (x, y) goal to contest/capture a safe supply drop, or None."""

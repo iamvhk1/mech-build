@@ -234,5 +234,29 @@ class DropsDoNotBlockFarmingTest(unittest.TestCase):
             tuning.use("best")
             del tuning.PRESETS["_late_test"]
 
+class BoldDropsTest(unittest.TestCase):
+    """D5: drops.max_threats tolerates that many known mechs near us or the drop."""
+
+    def setUp(self):
+        self._saved = tuning.ACTIVE
+
+    def tearDown(self):
+        tuning.use(self._saved)
+
+    def safe(self, preset, mechs, has_target=False):
+        from test_phase3 import make_obs, mech
+        tuning.use(preset)
+        th = ThreatTracker()
+        th.update(make_obs((0, 0, 0), mechs=[mech(i + 5, p) for i, p in enumerate(mechs)]))
+        return DropContester(None, CFG).is_safe((0, 0, 0), (30, 0, 0), th.hunters((0, 0, 0)), th, has_target)
+
+    def test_bold_tolerates_one_mech_and_a_fight(self):
+        self.assertTrue(self.safe("best", []))
+        self.assertFalse(self.safe("best", [(60, 0, 0)]))
+        self.assertTrue(self.safe("drops_bold", [(60, 0, 0)]))
+        self.assertTrue(self.safe("drops_bold", [(60, 0, 0)], has_target=True))
+        self.assertFalse(self.safe("best", [], has_target=True))
+        self.assertFalse(self.safe("drops_bold", [(60, 0, 0), (-50, 20, 0)]))
+
 if __name__ == "__main__":
     unittest.main()

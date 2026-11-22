@@ -20,6 +20,7 @@ DEFAULTS = {
     "drops.enabled": False,         # E5: contest landed/landing supply drops when safe
     "drops.safe_m": 80.0,           # safe distance from hunters and drop location
     "drops.max_dist": 150.0,        # max distance to travel for a supply drop
+    "drops.max_threats": 0,         # D5: known mechs tolerated within drops.safe_m (0 = none, no fight)
     # engagement policy (Phase 3, Q1)
     "engage.near_m": 60.0,          # shoot any mech this close
     "engage.low_hp": 0.35,          # ...or any target below this HP fraction
@@ -45,6 +46,8 @@ DEFAULTS = {
     "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
     "pacing.split": True,
     "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
+    "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
+    "hunt.max_m": 250.0,
     "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
     "arm.max_dist": 200.0,
     "arm.laser_after": None,        # D3: from this match time, take a laser if no lightning is within reach
@@ -232,6 +235,18 @@ PRESETS = {
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
               "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
               "fight.press": True, "arm.laser_after": 45.0},
+    # D4: best (4.19) + hunt the lone early hunter (with lightning, up to 250 m)
+    "hunt": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+             "fight.press": True, "fight.hunt": True},
+    # D5: best (4.19) + contest drops with up to one known mech near (fighting it if needed)
+    "drops_bold": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                   "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                   "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+                   "fight.press": True, "drops.max_threats": 1},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
