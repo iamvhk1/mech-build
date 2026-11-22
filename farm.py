@@ -218,11 +218,14 @@ class Farmer:
                 return (self.target_drone.pos[0], self.target_drone.pos[1])
         else:
             self.target_drone = None
-        # 3) a crate to shoot
+        # 3) a crate to shoot (farm.crate_max_lanes: skip crates in open plazas)
+        crate_lanes = tuning.get("farm.crate_max_lanes")
         if tuning.get("farm.crates"):
             if self.target is None or self.target.id not in self.crates:
                 crates = [c for c in self.crates.values()
-                          if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and self._street("crate", c)]
+                          if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and self._street("crate", c)
+                          if crate_lanes is None or getattr(self, "pacer", None) is None
+                          or self.pacer._open_lanes(c.pos, 9.0) <= int(crate_lanes)]
                 self.target = min(crates, key=lambda c: math.dist(c.pos[:2], pos[:2])) if crates else None
             if self.target is not None:
                 self.mode = f"crate {self.target.id}"

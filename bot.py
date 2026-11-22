@@ -71,6 +71,7 @@ class Bot:
         self.armer = Armer(self.core, self.cfg, self.farmer)
         self.pacer.farmer = self.farmer  # farm.bank: the pacer cashes in remembered cubes
         self.pacer._threats = self.threats  # mpc.tier: aggro order
+        self.farmer.pacer = self.pacer  # farm.crate_max_lanes: open-lane counts
         self.probe_idle = False  # diagnostics: set by probe.idle_on_pace
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()

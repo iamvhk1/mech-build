@@ -161,6 +161,28 @@ class Pacer:
 
     _threats = None  # set by Bot (mpc.tier needs the aggro order)
 
+    def _force_choke(self, me: dict, pos, h: float, limit: int, zone, walk: float, t: float):
+        if getattr(self, "_fc_t", -1e9) > t - 2.0 and getattr(self, "_fc_goal", None) is not None:
+            return self._fc_goal
+        r = float((me.get("stats") or {}).get("radius", 2.5))
+        best, best_s = None, math.inf
+        for rad in (10.0, 20.0, 32.0, 45.0, 60.0, 80.0, 100.0):
+            for k in range(16):
+                a = 2 * math.pi * k / 16
+                q = self.core.nearest_walkable(pos[0] + rad * math.cos(a), pos[1] + rad * math.sin(a), r, True)
+                if q is None or math.dist(q, pos[:2]) > rad + 4.0:
+                    continue
+                lanes = self._open_lanes(q, h)
+                if lanes > limit or not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
+                    continue
+                s = math.dist(q, pos[:2]) + 4.0 * lanes
+                if s < best_s:
+                    best, best_s = (q[0], q[1]), s
+            if best is not None:
+                break  # nearest ring with a real choke
+        self._fc_t, self._fc_goal = t, best
+        return best
+
     def narrow_spot(self, me: dict, zone, walk: float, t: float) -> Optional[Tuple[float, float]]:
         """fight.narrow: after N kills, a base with the fewest open approach lanes within 60 m (inside the
         zone), so bots must come through few lanes instead of surrounding us. Re-picked every 8 s or
@@ -188,7 +210,11 @@ class Pacer:
                     continue  # stay well inside the next circle
                 if not self._zone_ok(zone, (q[0], q[1], 0.0), pos, walk):
                     continue
-                s = self._open_lanes(q, h) + 0.03 * math.dist(q, pos[:2])
+                lanes = self._open_lanes(q, h)
+                max_lanes = tuning.get("narrow.max_lanes")
+                if max_lanes is not None and lanes > int(max_lanes):
+                    continue  # not a real choke (e.g. an open plaza): don't hold it
+                s = lanes + 0.03 * math.dist(q, pos[:2])
                 if s < best_s:
                     best, best_s = (q[0], q[1]), s
         self.narrow, self.narrow_t, self.narrow_key = best, t, key
@@ -250,6 +276,8 @@ class Pacer:
         best, best_s = None, -math.inf
         cands = [(pos[0], pos[1])]
         reach = speed * MPC_HORIZON_S
+        if getattr(self, "_force_hold", False):
+            reach = 6.0  # narrow.force: holding a real choke
         if tuning.get("narrow.hold") and self.narrow is not None and math.dist(self.narrow, pos[:2]) <= 10.0:
             reach = 6.0  # at the narrow base: hold the gully, let them come through its lanes
         for k in range(12):
@@ -351,6 +379,24 @@ class Pacer:
                     c = min(drop, key=lambda c: math.dist(c.pos[:2], pos[:2]))
                     self.mode = f"loot {c.id}"
                     return (c.pos[0], c.pos[1])
+
+        # 1b) narrow.force: with 2+ known mechs within 150 m and an open spot under us, go to the nearest
+        # real choke (<= narrow.max_lanes open lanes) within 100 m; once there, MPC only adjusts within 6 m
+        self._force_hold = False
+        if tuning.get("narrow.force") and self.core is not None:
+            near = [tr for tr in getattr(threats, "tracks", {}).values()
+                    if math.dist(tr.pos_at(tt)[:2], pos[:2]) <= 150.0]
+            if len(near) >= 2:
+                st = me.get("stats") or {}
+                h = float(st.get("height", 9.0))
+                limit = int(tuning.get("narrow.max_lanes") or 6)
+                if self._open_lanes((pos[0], pos[1]), h) <= limit:
+                    self._force_hold = True
+                else:
+                    g = self._force_choke(me, pos, h, limit, zone, walk, t)
+                    if g is not None:
+                        self.mode = "force choke"
+                        return g
 
         # 2) press a lone hunter into lightning range (we hold lightning, healthy, energy to spare)
         if tuning.get("fight.press") and len(fresh) == 1 and hp >= PRESS_MIN_HP and \
