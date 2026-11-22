@@ -214,6 +214,22 @@ class FarmTest(unittest.TestCase):
         # A player mech in combat takes priority (has_target=True)
         self.assertIsNone(self.plan(f, o, has_target=True))
 
+    def test_drone_target_follows_the_drone(self):
+        """Audit A3: the chosen drone's position is refreshed every observation, not frozen."""
+        me, d = self.pair_clear(35, 45, seed=12)
+        f = Farmer(self.core, CFG)
+        tuning.SETTINGS["farm.drones"] = True
+        o = make_obs(me, mechs=[mech(104, (d[0], d[1], d[2]), kind="npc", hp=350)])
+        f.observe(o)
+        self.plan(f, o)
+        self.assertIsNotNone(f.target_drone)
+        moved = (d[0] + 4.0, d[1] - 3.0, d[2])
+        o2 = make_obs(me, mechs=[mech(104, moved, kind="npc", hp=350)])
+        o2["t"] = o["t"] + 1.0
+        f.observe(o2)
+        self.plan(f, o2)
+        self.assertEqual(tuple(f.target_drone.pos[:2]), moved[:2])
+
     def test_combat_engages_farmed_drone(self):
         me, d = self.pair_clear(35, 45, seed=13)
         cb = Combat(CFG, self.core)

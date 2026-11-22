@@ -17,8 +17,13 @@ Detection rule:
 """
 from __future__ import annotations
 
+import math
 from typing import Optional
 import tuning
+
+INFIGHT_HIT_M = 5.0      # a laser ending this close to a mech hit it (mech radius 2.5 m, grows with cubes)
+INFIGHT_CLEAR_M = 30.0   # ...and that mech is at least this far from us (not a shot at us passing by)
+INFIGHT_EVENTS = 2       # beams needed to switch to free-for-all
 
 
 class ModeDetector:
@@ -27,19 +32,52 @@ class ModeDetector:
         self.unassisted_deaths: int = 0
         self.mode: str = "practice"
         self.locked: bool = False
+        self.infighting: int = 0
 
     def reset(self) -> None:
         self.last_alive = None
         self.unassisted_deaths = 0
         self.mode = "practice"
         self.locked = False
+        self.infighting = 0
         tuning.set_mode("practice")
+
+    def _infighting(self, obs: dict) -> int:
+        """Audit A2: laser beams from one other mech ending on a third mech (not us, not near us).
+        House bots never fight each other, so in practice this never happens; it works at any time
+        of the match, unlike the death rule below, which locks after 120 s."""
+        me = obs.get("self") or {}
+        my_id = me.get("id")
+        mp = me.get("pos") or [0.0, 0.0, 0.0]
+        others = [m for m in obs.get("mechs") or [] if m.get("kind", "mech") == "mech" and m.get("id") != my_id]
+        n = 0
+        for b in obs.get("beams") or []:
+            if b.get("kind") != "laser" or b.get("by") in (None, my_id):
+                continue
+            path = b.get("path") or []
+            if len(path) < 2:
+                continue
+            end = path[-1]
+            if math.dist(end[:2], mp[:2]) < INFIGHT_CLEAR_M:
+                continue  # aimed at us, possibly passing a squad mate: not evidence
+            for m in others:
+                if m.get("id") == b.get("by"):
+                    continue
+                if math.dist(end[:2], m["pos"][:2]) <= INFIGHT_HIT_M:
+                    n += 1
+                    break
+        return n
 
     def observe(self, obs: dict, zone) -> str:
         """Update detection state from current observation and zone. Returns current mode."""
         if not tuning.get("mode.detect"):
             return "practice"
         if self.mode == "ffa":
+            return "ffa"
+        self.infighting += self._infighting(obs)
+        if self.infighting >= INFIGHT_EVENTS:
+            self.mode = "ffa"
+            tuning.set_mode("ffa")
             return "ffa"
         if self.locked:
             return "practice"

@@ -147,5 +147,55 @@ class DropTest(unittest.TestCase):
         self.assertEqual(dropper.mode, "")
 
 
+class DropsDoNotBlockFarmingTest(unittest.TestCase):
+    """Audit A1: with drops enabled but no drop available (the recorded match ends before the first
+    drop is called at 70 s), the bot must act exactly like `best` (farming included)."""
+
+    def actions(self, preset):
+        import gzip
+        import json
+        import mechfight as mf
+        real = mf.run
+        mf.run = lambda *a, **k: None
+        try:
+            import bot as B
+        finally:
+            mf.run = real
+        saved = tuning.ACTIVE
+        tuning.use(preset)
+        try:
+            with gzip.open(os.path.join(ROOT, "check", "stream.jsonl.gz"), "rt") as f:
+                L = [json.loads(line) for line in f]
+            L[0]["map"]["dir"] = os.path.join(ROOT, "arena")
+            b = B.Bot(L[0])
+            out = []
+            for o in L[1:]:
+                if o.get("type") == "obs":
+                    a = dict(b.act(o))
+                    a.pop("debug", None)
+                    out.append(a)
+            return out
+        finally:
+            tuning.use(saved)
+
+    def test_drops_preset_matches_best_before_first_drop(self):
+        self.assertEqual(self.actions("drops"), self.actions("best"))
+
+    def test_probe_is_best_until_idle_time(self):
+        """Diagnostic probes play exactly like `best` before T (the recording ends before 120 s)."""
+        self.assertEqual(self.actions("probe_idle120"), self.actions("best"))
+
+    def test_probe_idles_after_idle_time(self):
+        tuning.PRESETS["_probe_test"] = dict(tuning.PRESETS["best"], **{"probe.idle_at": 20.0})
+        try:
+            best, probe = self.actions("best"), self.actions("_probe_test")
+        finally:
+            del tuning.PRESETS["_probe_test"]
+        ticks_t = [a["tick"] / 20.0 for a in best]
+        for t, a, p in zip(ticks_t, best, probe):
+            if t >= 20.0:
+                self.assertEqual(p, {"tick": a["tick"]})
+        self.assertTrue(any(t < 20.0 for t in ticks_t) and any(t >= 20.0 for t in ticks_t))
+
 if __name__ == "__main__":
     unittest.main()

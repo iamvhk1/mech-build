@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "farm_safe80"
+ACTIVE = "center"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -52,6 +52,9 @@ DEFAULTS = {
     "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
     "farm.min_hp": 0.6,             # ...and HP at least this fraction (crates/cubes)
     "farm.max_dist": 80.0,          # consider crates/cubes/drones within this distance
+    # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
+    # the score reads out the place points earned before it
+    "probe.idle_at": None,
 }
 
 PRESETS = {
@@ -155,6 +158,19 @@ PRESETS = {
     "farm_hp45": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                   "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.min_hp": 0.45},
+    # Batch B (2026-11-22), B1: hold the next zone centre all match (burn mode from t = 0: navigate to
+    # the centre, fight from there, no retreat) and let the zone thin the squad
+    "center": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+               "farm.crates": True, "farm.cubes": True, "mode.detect": True,
+               "burn.enabled": True, "burn.radius": 1000.0},
+    # B2/B3 diagnostic probes: best until T, then idle (score = place points earned by T)
+    "probe_idle120": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "probe.idle_at": 120.0},
+    "probe_idle240": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "probe.idle_at": 240.0},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

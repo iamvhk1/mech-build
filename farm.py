@@ -171,6 +171,8 @@ class Farmer:
                 return (c.pos[0], c.pos[1])
         # 2) a drone to shoot (C2)
         if tuning.get("farm.drones") and self.safe_for_drone(me, hunters, threats, has_target):
+            if self.target_drone is not None and self.target_drone.id in self.drones:
+                self.target_drone = self.drones[self.target_drone.id]  # audit A3: latest position, not first seen
             if self.target_drone is None or self.target_drone.id not in self.drones:
                 drones = [d for d in self.drones.values()
                           if math.dist(d.pos[:2], pos[:2]) <= max_d and zone_ok(d.pos) and self._street("npc", d)]

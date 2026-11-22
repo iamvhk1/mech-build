@@ -123,6 +123,35 @@ class ModeDetectionTest(unittest.TestCase):
         self.assertEqual(tuning.get_mode(), "practice")
         self.assertEqual(tuning.get("retreat.hp_enter"), 0.35)
 
+    def _beam_obs(self, t, end, target_pos, by=5, kind="laser"):
+        return {"alive": 16, "t": t, "events": [],
+                "self": {"id": 1, "pos": [0.0, 0.0, 0.0]},
+                "mechs": [{"id": 5, "kind": "mech", "pos": [200.0, 0.0, 0.0]},
+                          {"id": 7, "kind": "mech", "pos": list(target_pos)}],
+                "beams": [{"by": by, "kind": kind, "path": [[200.0, 0.0, 7.0], list(end)], "age": 0.0}]}
+
+    def test_infighting_beams_switch_to_ffa_even_late(self):
+        """Audit A2: a laser from one mech ending on another (far from us) is a free-for-all,
+        at any time of the match, even after the 120 s death-rule lock."""
+        z = self._zone(radius=240, shrink_start=60)
+        self.detector.observe({"alive": 16, "t": 130.0, "events": []}, z)
+        self.assertTrue(self.detector.locked)
+        hit = (120.0, 40.0, 4.0)
+        self.detector.observe(self._beam_obs(131.0, hit, (121.0, 41.0, 0.0)), z)
+        self.assertEqual(self.detector.mode, "practice")  # one beam is not enough
+        mode = self.detector.observe(self._beam_obs(132.0, hit, (121.0, 41.0, 0.0)), z)
+        self.assertEqual(mode, "ffa")
+        self.assertEqual(tuning.get_mode(), "ffa")
+
+    def test_beams_at_us_or_lightning_are_not_infighting(self):
+        z = self._zone(radius=560, shrink_start=60)
+        for i in range(5):
+            # a laser ending next to us (a squad mate standing near us) and lightning arcs
+            self.detector.observe(self._beam_obs(10.0 + i, (10.0, 0.0, 4.0), (11.0, 1.0, 0.0)), z)
+            self.detector.observe(self._beam_obs(10.5 + i, (120.0, 40.0, 4.0), (121.0, 41.0, 0.0),
+                                                 kind="lightning"), z)
+        self.assertEqual(self.detector.mode, "practice")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -181,6 +181,9 @@ class Bot:
         me = obs["self"]
         x, y, z = me["pos"]
         t = float(obs["t"])
+        idle_at = tuning.get("probe.idle_at")
+        if idle_at is not None and t >= float(idle_at):
+            return {"tick": obs["tick"]}  # diagnostic probe: stand still, hold fire (no more points)
         st = me.get("stats") or {}
         act: mf.Action = {"tick": obs["tick"]}
         pick = upgrades.pick(obs.get("offer"), me, self.cfg)
@@ -222,14 +225,16 @@ class Bot:
             goal, why = self.fighter_goal, f"fight {self.fighter.mode}"
         elif pickup is not None and self.zone.time_until_outside(pickup["pos"]) >                 math.dist(pickup["pos"][:2], (x, y)) / max(1.0, walk) + 10.0:
             goal, why = (pickup["pos"][0], pickup["pos"][1]), f"get {pickup['kind']}"
-        elif tuning.get("drops.enabled") and dec.state == "rotate" and not zone_urgent:
-            dg = self.drop_goal(obs, targets)
+        elif dec.state == "rotate" and not zone_urgent:
+            # supply drop first; with no safe drop, fall through to farming (audit A1: this used to
+            # be an elif that skipped farming whenever drops were enabled)
+            dg = self.drop_goal(obs, targets) if tuning.get("drops.enabled") else None
             if dg is not None:
                 goal, why = dg, f"drop {self.dropper.mode}"
-        elif (tuning.get("farm.crates") or tuning.get("farm.cubes") or tuning.get("farm.drones")) and dec.state == "rotate" and not zone_urgent:
-            fg = self.farm_goal(obs, targets)
-            if fg is not None:
-                goal, why, farming = fg, f"farm {self.farmer.mode}", True
+            elif tuning.get("farm.crates") or tuning.get("farm.cubes") or tuning.get("farm.drones"):
+                fg = self.farm_goal(obs, targets)
+                if fg is not None:
+                    goal, why, farming = fg, f"farm {self.farmer.mode}", True
         self.nav.allow_roofs = dec.roofs
         self.nav.set_goal(goal)
 
