@@ -55,6 +55,7 @@ DEFAULTS = {
     "fight.los": False,             # R2: with 2+ hunters, step to where the fewest can see us (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
+    "hunt.local": False,            # F2: hunt the nearest mech when every other known one is far behind it
     "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
     "arm.max_dist": 200.0,
     "arm.laser_after": None,        # D3: from this match time, take a laser if no lightning is within reach

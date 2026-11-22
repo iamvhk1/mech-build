@@ -193,8 +193,16 @@ class Pacer:
                 float(me.get("energy", 0.0)) >= HUNT_MIN_ENERGY and \
                 any(w and w.get("kind") == "lightning" for w in (me.get("weapons") or [])):
             tracks = list(getattr(threats, "tracks", {}).values())
+            tr = None
             if len(tracks) == 1:
                 tr = tracks[0]
+            elif tracks and tuning.get("hunt.local"):
+                # isolated, not alone: the nearest mech, with every other known one far behind it
+                ds = sorted((math.dist(x.pos_at(tt)[:2], pos[:2]), i) for i, x in enumerate(tracks))
+                d0 = ds[0][0]
+                if all(d >= max(100.0, d0 + 60.0) for d, _ in ds[1:]):
+                    tr = tracks[ds[0][1]]
+            if tr is not None:
                 p = tr.pos_at(tt)
                 d = math.dist(p[:2], pos[:2])
                 if PRESS_FROM_M < d <= float(tuning.get("hunt.max_m")):

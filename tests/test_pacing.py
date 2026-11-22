@@ -155,6 +155,22 @@ class PacingTest(unittest.TestCase):
         tuning.use("best")  # switch off: the normal loot rule keeps its HP floor
         self.assertIsNone(self.plan(o, close))
 
+    def test_hunt_local_ignores_a_far_second_mech(self):
+        tuning.PRESETS["_hl"] = dict(tuning.PRESETS["hunt"], **{"hunt.local": True})
+        try:
+            tuning.use("_hl")
+            g = self.plan(self.lightning_obs([mech(6, (60, 0, 0)), mech(7, (-170, 0, 0))]))
+            self.assertIsNotNone(g)
+            self.assertTrue(self.p.mode.startswith("hunt 6"))
+            self.th = ThreatTracker()
+            self.plan(self.lightning_obs([mech(6, (60, 0, 0)), mech(7, (-90, 0, 0))], t=60.0))
+            self.assertFalse(self.p.mode.startswith("hunt"))  # second mech too close: no hunt (7 aims at us: press)
+            self.th = ThreatTracker()
+            tuning.use("hunt")  # without hunt.local: any second known mech switches it off
+            self.assertIsNone(self.plan(self.lightning_obs([mech(6, (60, 0, 0)), mech(7, (-170, 0, 0))], t=61.0)))
+        finally:
+            del tuning.PRESETS["_hl"]
+
     def test_no_split_into_the_zone(self):
         o = self.step(make_obs((0, 0, 0), mechs=[aimed(6, (40, 0, 0)), aimed(7, (0, 80, 0))], t=50.0))
         self.assertIsNone(self.plan(o, zone=FakeZone(left=1.0)))
