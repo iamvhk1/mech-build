@@ -166,7 +166,9 @@ class Pacer:
             return self._fc_goal
         r = float((me.get("stats") or {}).get("radius", 2.5))
         best, best_s = None, math.inf
-        for rad in (10.0, 20.0, 32.0, 45.0, 60.0, 80.0, 100.0):
+        far = float(tuning.get("narrow.force_m"))
+        rings = [x for x in (10.0, 20.0, 30.0, 40.0, 55.0, 70.0, 85.0, 100.0) if x <= far]
+        for rad in rings:
             for k in range(16):
                 a = 2 * math.pi * k / 16
                 q = self.core.nearest_walkable(pos[0] + rad * math.cos(a), pos[1] + rad * math.sin(a), r, True)
@@ -386,7 +388,10 @@ class Pacer:
         if tuning.get("narrow.force") and self.core is not None:
             near = [tr for tr in getattr(threats, "tracks", {}).values()
                     if math.dist(tr.pos_at(tt)[:2], pos[:2]) <= 150.0]
-            if len(near) >= 2:
+            pre = bool(tuning.get("narrow.force_pre"))
+            closest = min((math.dist(tr.pos_at(tt)[:2], pos[:2]) for tr in near), default=1e9)
+            quiet = threats is None or not hasattr(threats, "damage_taken") or threats.damage_taken(3.0) <= 0.0
+            if len(near) >= 2 and (not pre or (closest > 50.0 and quiet)):
                 st = me.get("stats") or {}
                 h = float(st.get("height", 9.0))
                 limit = int(tuning.get("narrow.max_lanes") or 6)
