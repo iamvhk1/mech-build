@@ -249,6 +249,15 @@ class Combat:
                 s = 3.0 * hit_us + 2.0 * (m.dist <= near_m) + 2.0 * low - m.dist / 100.0 - m.hp / m.max_hp
                 if shootable:
                     s += 4.0
+                if tuning.get("fight.finish") and shootable and low and m.kind == "mech" and m.dist <= 45.0:
+                    s += 6.0  # finish it: a kill is +1 point and drops its cubes; a wounded survivor is 0
+                if tuning.get("fight.arc") and muzzle is not None and m.kind == "mech":
+                    # aiming at m puts attackers more than 90 deg off our aim behind us (x1.5 damage)
+                    b0 = math.atan2(m.pos[1] - muzzle[1], m.pos[0] - muzzle[0])
+                    behind = sum(1 for o in targets if o.kind == "mech" and o.id != m.id and o.dist <= 80.0
+                                 and (self.attacked_recently(o.id, t) or o.dist <= 45.0)
+                                 and abs(wrap(math.atan2(o.pos[1] - muzzle[1], o.pos[0] - muzzle[0]) - b0)) > math.pi / 2)
+                    s -= 1.5 * behind
             if s > best_s:
                 best, best_s = m, s
         return best
@@ -533,11 +542,16 @@ class Combat:
             return False
         if self.core is not None and self.core.shot_los(muzzle, intended.center) < 1.0:
             return False
-        others = [(m.center, m.id) for m in targets if m.id != intended.id]
-        others += [([c["pos"][0], c["pos"][1], c["pos"][2] + 1.2], c["id"]) for c in obs.get("crates") or []]
-        for c, _ in others:
+        any_mech = bool(tuning.get("lightning.any_mech"))
+        others = [(m.center, m.id, m.kind) for m in targets if m.id != intended.id]
+        others += [([c["pos"][0], c["pos"][1], c["pos"][2] + 1.2], c["id"], "crate") for c in obs.get("crates") or []]
+        for c, _, kind in others:
             if math.dist(muzzle, c) < d0 and abs(wrap(yaw_pitch(muzzle, c)[0] - act_yaw)) <= cone:
                 if self.core is None or self.core.shot_los(muzzle, c) >= 1.0:
+                    if kind == "mech":
+                        self.lightning_blocked_by_mech = getattr(self, "lightning_blocked_by_mech", 0) + 1
+                        if any_mech and intended.kind == "mech":
+                            continue  # another enemy mech takes the arc instead: still damage where it counts
                     return False
         return True
 

@@ -86,7 +86,9 @@ class MiniSim:
                 self.z += self.vz * h
                 if self.z <= f:
                     self.z, self.vz, self.grounded = f, 0.0, True
-        if not boost:
+        if boost or act.get("jump"):
+            self.spent_t = self.t
+        if not boost and self.t - getattr(self, "spent_t", -1e9) >= m.get("energy_regen_delay", 0.0):
             self.energy = min(m["energy"], self.energy + m["energy_regen"] * dt)
         self.t += dt
         self.tick += 2

@@ -517,6 +517,9 @@ class Match:
         bearing = math.atan2(h.pos[1] - y, h.pos[0] - x)
         rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
         dmg = dmg * (self.m["rear_mult"] if rear else 1.0) * (1.0 - self.armor)
+        self.stats["dmg_taken"] = self.stats.get("dmg_taken", 0.0) + dmg
+        if rear:
+            self.stats["dmg_rear"] = self.stats.get("dmg_rear", 0.0) + dmg
         self.hp -= dmg
         self.last_combat_t = t
         self.hit_log.append((t, h.id))
@@ -581,6 +584,9 @@ class Match:
             bearing = math.atan2(h.pos[1] - y, h.pos[0] - x)
             rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
             dmg = self.g["damage"] * (self.m["rear_mult"] if rear else 1.0) * (1.0 - self.armor)
+            self.stats["dmg_taken"] = self.stats.get("dmg_taken", 0.0) + dmg
+            if rear:
+                self.stats["dmg_rear"] = self.stats.get("dmg_rear", 0.0) + dmg
             self.hp -= dmg
             self.last_combat_t = t
             self.hit_log.append((t, h.id))
@@ -671,6 +677,7 @@ class Match:
             if self.slot1 == "lightning" and fire[1] and self.cd1 == 0 and self.sim.energy >= self.lw["energy"]:
                 self.cd1 = self.lw["cooldown"]
                 self.sim.energy -= self.lw["energy"]
+                self.sim.spent_t = t
                 self.last_combat_t = t
                 x, y, zz = self.me()
                 mz = (x, y, zz + self.m["muzzle_height"])

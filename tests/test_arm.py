@@ -144,5 +144,30 @@ class LaserTest(unittest.TestCase):
         hold, _ = c.laser_trigger(charged, target, aim_pt, yaw, pitch, [target], muzzle)
         self.assertFalse(hold)         # on target: let go, the beam fires
 
+class LightningAnyMechTest(unittest.TestCase):
+    """H1: with lightning.any_mech, a different enemy mech nearer in the cone no longer blocks the arc."""
+
+    def setUp(self):
+        self._saved = tuning.ACTIVE
+
+    def tearDown(self):
+        tuning.use(self._saved)
+
+    def test_nearer_enemy_mech_no_longer_blocks(self):
+        from combat import Combat
+        c = Combat(CFG, None)
+        o = make_obs((0, 0, 0), mechs=[mech(5, (40, 0, 0)), mech(6, (25, 2, 0))], energy=100.0)
+        targets = c.targets(o)
+        far = next(m for m in targets if m.id == 5)
+        w = {"kind": "lightning", "cooldown": 0.0, "stats": dict(CFG["weapons"]["lightning"])}
+        muzzle = [0.0, 0.0, 7.0]
+        tuning.use("package")
+        self.assertFalse(c.lightning_ok(o, w, far, muzzle, 0.0, targets))  # old rule: blocked by mech 6
+        tuning.use("pkg_anymech")
+        self.assertTrue(c.lightning_ok(o, w, far, muzzle, 0.0, targets))   # the arc hits mech 6: fine
+        o2 = make_obs((0, 0, 0), mechs=[mech(5, (40, 0, 0))], crates=[{"id": 1001, "pos": [25, 1, 0], "hp": 300}])
+        t2 = c.targets(o2)
+        self.assertFalse(c.lightning_ok(o2, w, t2[0], muzzle, 0.0, t2))     # a crate still blocks
+
 if __name__ == "__main__":
     unittest.main()
