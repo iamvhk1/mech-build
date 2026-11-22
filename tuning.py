@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "probe_loot"
+ACTIVE = "pacing_loot"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -43,6 +43,7 @@ DEFAULTS = {
     "fight.focus": False,           # B3: stay on one target, prefer quickest kills, finish wounded targets
     "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
     "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
+    "pacing.split": True,           # ...including the split rule (C2c tests loot alone)
     # cube economy (master plan Stage C)
     "farm.crates": False,           # C1: shoot street-level crates and collect their cube when safe
     "farm.cubes": False,            # C3: also collect any other visible cube (kill drops) when safe
@@ -197,6 +198,11 @@ PRESETS = {
                     "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                     "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
                     "fight.pacing": True, "probe.idle_on_pace": "split"},
+    # C2c: pacing with the loot rule only (probe_loot 1.60: loot fires in practice; does it help?)
+    "pacing_loot": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                    "fight.pacing": True, "pacing.split": False},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

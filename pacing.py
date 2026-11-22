@@ -15,6 +15,8 @@ from __future__ import annotations
 import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import tuning
+
 LOOT_WINDOW_S = 15.0      # go for a kill's cubes for this long after the kill
 LOOT_RADIUS_M = 15.0      # cubes this close to where the mech died are its drop
 LOOT_MAX_M = 60.0         # ...and at most this far from us
@@ -78,7 +80,7 @@ class Pacer:
                     return (c.pos[0], c.pos[1])
 
         # 2) split the hunters
-        if len(fresh) >= 2:
+        if tuning.get("pacing.split") and len(fresh) >= 2:
             fresh.sort(key=lambda h: math.dist(h.pos_at(tt)[:2], pos[:2]))
             rest = [h.pos_at(tt) for h in fresh[1:]]
             cx = sum(p[0] for p in rest) / len(rest)
