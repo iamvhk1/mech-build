@@ -397,6 +397,34 @@
   }
 
   function drawEconomy(frame) {
+    // Crates (brown boxes; 300 HP, 1 cube, 50% weapon)
+    (frame.crates || []).forEach((c) => {
+      const s = worldToScreen(c.pos[0], c.pos[1]);
+      ctx.save();
+      ctx.fillStyle = '#a16207';
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 1;
+      ctx.fillRect(s.x - 4, s.y - 4, 8, 8);
+      ctx.strokeRect(s.x - 4, s.y - 4, 8, 8);
+      ctx.restore();
+    });
+
+    // NPC drones (red triangles; 350 HP, 2 cubes, shoot within 45 m)
+    (frame.drones || []).forEach((d) => {
+      const s = worldToScreen(d.pos[0], d.pos[1]);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y - 6);
+      ctx.lineTo(s.x + 5, s.y + 4);
+      ctx.lineTo(s.x - 5, s.y + 4);
+      ctx.closePath();
+      ctx.fillStyle = '#ef4444';
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 4;
+      ctx.fill();
+      ctx.restore();
+    });
+
     // Floor Cubes (Glowing Purple Diamond)
     (frame.cubes || []).forEach((c) => {
       const s = worldToScreen(c.pos[0], c.pos[1]);

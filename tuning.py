@@ -35,6 +35,9 @@ DEFAULTS = {
     "retreat.hold_fire": True,      # hold fire while retreating (regen needs no damage dealt)
     "retreat.cornered_m": 25.0,     # ...but fight back this close
     "retreat.finish_hp": 0.15,      # ...or finish a target this low
+    "retreat.many_n": None,         # S1: also retreat with this many hunters within 100 m...
+    "retreat.many_hp": 0.70,        # ...when below this HP fraction
+    "heal.lull_hp": None,           # S2: below this HP with no hunter around, stop and heal to 95%
     # rooftop camping (roadmap item 2)
     "roof.enabled": False,          # climb a roof inside the next circle and fight from its edge
     "roof.peek_hp": 0.5,            # step to the edge toward a hunter only above this HP fraction
@@ -291,6 +294,20 @@ PRESETS = {
                   "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
                   "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
                   "early.drones": True, "pacing.loot_more": True},
+    # S2: loot_more + heal in lulls (below 75% HP with no hunter within 100 m: regenerate to 95%)
+    "lull": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "heal.lull_hp": 0.75},
+    # S1: loot_more + back off when 2 hunters are within 100 m below 70% HP (still shooting)
+    "many2": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "retreat.many_n": 2},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

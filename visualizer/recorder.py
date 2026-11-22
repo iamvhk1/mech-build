@@ -234,7 +234,9 @@ def record_squad(seed: int = 42, preset: str = "best") -> dict:
                     "hp": round(float(h.hp), 1),
                     "max_hp": round(float(h.max_hp), 1),
                     "active": bool(h.active),
-                    "alive": bool(h.alive)
+                    "alive": bool(h.alive),
+                    "weapons": ["gun"] + ([h.second] if getattr(h, "second", None) else []),
+                    "charging": bool(getattr(h, "charge", 0.0) > 0)
                 }
                 for h in m.hunters if h.alive
             ],
@@ -245,6 +247,14 @@ def record_squad(seed: int = 42, preset: str = "best") -> dict:
             "cubes": [
                 {"id": cid, "pos": [round(p[0], 1), round(p[1], 1)]}
                 for cid, p in m.cube_items.items()
+            ],
+            "crates": [
+                {"id": cid, "pos": [round(c["pos"][0], 1), round(c["pos"][1], 1)], "hp": round(float(c["hp"]), 1)}
+                for cid, c in getattr(m, "crate_items", {}).items()
+            ],
+            "drones": [
+                {"id": did, "pos": [round(d["pos"][0], 1), round(d["pos"][1], 1)], "hp": round(float(d["hp"]), 1)}
+                for did, d in getattr(m, "drones", {}).items()
             ],
             "drops": [
                 {

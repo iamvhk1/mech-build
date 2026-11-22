@@ -39,6 +39,8 @@ import tuning  # noqa: E402
 from combat import wrap  # noqa: E402
 from sim import MiniSim  # noqa: E402
 
+# chance a house bot of each tier carries a second weapon (lightning / laser / mortar, like floor loot)
+SECOND_WEAPON = {"easy": 0.25, "medium": 0.5, "hard": 0.75, "expert": 1.0}
 # tier: (hit prob standing, hit prob vs a moving target, hp multiplier, speed multiplier, preferred range m)
 TIERS = {
     "easy": (0.22, 0.12, 0.9, 0.80, 55.0),
@@ -76,6 +78,10 @@ class Hunter:
         self.ammo = 0
         self.rl = 0.0
         self.seen_t = -1e9
+        self.second = None     # "lightning" / "laser" / "mortar" or None
+        self.cd2 = 0.0
+        self.charge = 0.0
+        self.energy = 100.0
 
 
 class Zone:
@@ -133,6 +139,10 @@ class Match:
                         for i, (tier, (x, y)) in enumerate(zip(SQUAD, spots[1:]))]
         for h in self.hunters:
             h.ammo = self.g["mag"]
+            if self.rng.random() < SECOND_WEAPON[h.tier]:
+                h.second = self.rng.choice(["lightning", "laser", "mortar"])
+                if h.second == "lightning":
+                    h.pref = min(h.pref, 35.0)  # lightning carriers close in
         self.hp = self.max_hp = float(self.m["hp"])
         self.cubes = 0
         self.aim = [0.0, 0.0]
@@ -238,7 +248,8 @@ class Match:
             if t - h.seen_t <= 5.0:
                 mechs.append({"id": h.id, "kind": "mech", "pos": list(h.pos), "vel": list(h.vel),
                               "aim": [math.atan2(y - h.pos[1], x - h.pos[0]) if h.active else 0.0, 0.0],
-                              "hp": h.hp, "max_hp": h.max_hp, "cubes": 0, "weapons": ["gun"], "charging": False})
+                              "hp": h.hp, "max_hp": h.max_hp, "cubes": 0,
+                              "weapons": ["gun"] + ([h.second] if h.second else []), "charging": h.charge > 0})
         for did, dr in self.drones.items():
             dd = math.dist(dr["pos"][:2], (x, y))
             if dd <= 45.0 or self.core.can_see((x, y), zz + self.m["eye_height"], self.aim[0], dr["pos"][:2],
@@ -446,6 +457,54 @@ class Match:
         h.pos[2] = self.core.floor_z(h.pos[0], h.pos[1])
         h.vel = [dx / n * speed, dy / n * speed, 0.0]
 
+    def _hit_us(self, h, t, dmg, weapon):
+        x, y, _ = self.me()
+        bearing = math.atan2(h.pos[1] - y, h.pos[0] - x)
+        rear = abs(wrap(bearing - self.aim[0])) > math.pi / 2
+        dmg = dmg * (self.m["rear_mult"] if rear else 1.0)
+        self.hp -= dmg
+        self.last_combat_t = t
+        self.hit_log.append((t, h.id))
+        self.events.append({"type": "damaged", "amount": dmg, "weapon": weapon, "bearing": bearing,
+                            "by": h.id, "rear": rear})
+
+    def _hunter_second(self, h, t, moving):
+        """A house bot's second weapon: lightning (auto-hits within 45 m), laser (0.75 s visible charge,
+        then an instant 315), mortar (slow lob: an occasional heavy hit at 40-200 m)."""
+        h.cd2 = max(0.0, h.cd2 - DT)
+        h.energy = min(100.0, h.energy + 18.0 * DT * 0.5)
+        if not h.active or h.second is None:
+            h.charge = 0.0
+            return
+        x, y, z = self.me()
+        d = math.hypot(x - h.pos[0], y - h.pos[1])
+        has = self._hunter_has_shot(h)
+        if h.second == "lightning":
+            lw = self.cfg["weapons"]["lightning"]
+            if has and d <= lw["range"] and h.cd2 == 0 and h.energy >= lw["energy"]:
+                h.cd2, h.energy = lw["cooldown"], h.energy - lw["energy"]
+                if self.rng.random() < 0.9:
+                    self._hit_us(h, t, lw["damage"], "lightning")
+        elif h.second == "laser":
+            lz = self.cfg["weapons"]["laser"]
+            if h.cd2 > 0 or d > lz["range"]:
+                h.charge = 0.0
+                return
+            if has:
+                h.charge += DT
+                if h.charge >= lz["charge"]:
+                    h.charge, h.cd2 = 0.0, lz["cooldown"]
+                    if self.rng.random() < (h.p_move if moving else h.p_still) * 1.3:
+                        self._hit_us(h, t, lz["damage"], "laser")
+            else:
+                h.charge = 0.0
+        elif h.second == "mortar":
+            mz = self.cfg["weapons"]["mortar"]
+            if h.cd2 == 0 and 40.0 <= d <= 200.0:
+                h.cd2 = mz["cooldown"]
+                if self.rng.random() < (0.15 if moving else 0.35):
+                    self._hit_us(h, t, mz["splash"] * 0.7, "mortar")
+
     def _hunter_fire(self, h, t, moving):
         h.cd = max(0.0, h.cd - DT)
         if h.rl > 0:
@@ -624,6 +683,7 @@ class Match:
                 if h.alive:
                     self._move_hunter(h, t, z)
                     self._hunter_fire(h, t, moving)
+                    self._hunter_second(h, t, moving)
             recent = {hid for (ht, hid) in self.hit_log if t - ht <= 2.0}
             if len(recent) >= 2:
                 self.stats["ganged_s"] += DT

@@ -21,6 +21,9 @@ HEAVY_DAMAGE_HP = 0.85       #    while below this HP fraction
 MANY_HUNTERS = 3             # ...or this many hunters within MANY_RANGE_M
 MANY_RANGE_M = 100.0
 MIN_STATE_S = 1.5            # hysteresis
+LULL_CLEAR_M = 100.0         # heal in lulls (heal.lull_hp): no hunter this close...
+LULL_SEEN_S = 5.0            # ...seen this recently
+LULL_EXIT_HP = 0.95          # heal up to this, unless a hunter shows up
 HIDE_REFRESH_S = 1.0
 HIDE_RADII = (6.0, 10.0, 15.0, 20.0, 28.0, 36.0, 46.0)
 HIDE_DIRS = 16
@@ -155,8 +158,31 @@ class Strategy:
             self._set(ROTATE, t)
             return Decision(ROTATE, why="rotate")
         many = sum(1 for hh in hunters if math.dist(hh.pos_at(t)[:2], pos[:2]) <= MANY_RANGE_M) >= MANY_HUNTERS
+        # S2: heal in lulls: below heal.lull_hp with no hunter around, stop and regenerate
+        lull_hp = tuning.get("heal.lull_hp")
+        quiet = not any(math.dist(tr.pos_at(t)[:2], pos[:2]) <= LULL_CLEAR_M and t - tr.t_seen < LULL_SEEN_S
+                        for tr in self.threats.tracks.values())
+        if lull_hp is not None and self.state == ROTATE and quiet and hp < float(lull_hp) and \
+                t - self.state_t >= MIN_STATE_S:
+            self.lull = True
+            self._set(RETREAT, t)
+        if getattr(self, "lull", False):
+            if self.state != RETREAT or hp >= LULL_EXIT_HP or not quiet:
+                self.lull = False
+                if self.state == RETREAT and hp >= tuning.get("retreat.hp_exit"):
+                    self._set(ROTATE, t)  # healed enough, or a hunter showed up: back to normal play
+                elif self.state == RETREAT and not quiet and hp >= tuning.get("retreat.hp_enter"):
+                    self._set(ROTATE, t)  # a hunter arrived while we were only topping up: fight
+            else:
+                hide = self.hide if self.hide is not None else (pos[0], pos[1])
+                return Decision(RETREAT, goal=hide, retreat=False, why=f"heal lull hp {hp:.0%}")
         heavy = self.threats.damage_taken(2.0) > HEAVY_DAMAGE_FRAC * float(me.get("max_hp", 1400)) and hp < HEAVY_DAMAGE_HP
         many = many and tuning.get("retreat.on_hunters")
+        # S1: back off earlier when two bots converge (retreat.many_n hunters within 100 m, below many_hp)
+        many_n = tuning.get("retreat.many_n")
+        if many_n is not None and hp < float(tuning.get("retreat.many_hp")) and \
+                sum(1 for hh in hunters if math.dist(hh.pos_at(t)[:2], pos[:2]) <= MANY_RANGE_M) >= int(many_n):
+            many = True
         heavy = heavy and tuning.get("retreat.on_heavy_damage")
         want_retreat = hp < tuning.get("retreat.hp_enter") or many or heavy
         healed = hp >= tuning.get("retreat.hp_exit") and not many
