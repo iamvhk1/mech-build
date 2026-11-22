@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "arm"
+ACTIVE = "press"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -44,6 +44,7 @@ DEFAULTS = {
     "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
     "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
     "pacing.split": True,
+    "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
     "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
     "arm.max_dist": 200.0,
     "arm.safe_m": 50.0,             # ...only with no hunter this close           # ...including the split rule (C2c tests loot alone)
@@ -79,11 +80,12 @@ PRESETS = {
     # + crate farming (run C1) 3.00; + all visible cubes (run C3) 3.38; + mode detection (run D1b) 3.38
     # + supply drops with the A1 fix (run B4) 3.46; + loot a kill's cubes (run C2c) 3.48, kept by
     # decision despite the tie (highest score so far; plausible mechanism); + crates/cubes up to 120 m
-    # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept
+    # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept; + arm up early with a
+    # remembered lightning (run D1) 4.05
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0},
+             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -216,6 +218,12 @@ PRESETS = {
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True},
+    # D2: best (with arm, 4.05) + press a lone hunter into lightning range
+    "press": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,

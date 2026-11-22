@@ -143,7 +143,8 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 32 | `probe_loot` (run C2a, diagnostic) | `bce0bea` | 1.60 | `pacing`, standing still from the first loot. Far below 3.46, so loot fires early and often in practice. (In the offline squad simulator: 0.95.) |
 | 33 | `pacing_loot` (run C2c) | `bf30d0b` | **3.48** | `best` + loot only (`pacing.split` off): +0.02, a tie under the rule, but the highest score so far with a plausible mechanism (kill cubes heal 4% each and add damage just before the next hunters arrive). **Kept by decision; now part of `best`.** Split stays off. |
 | 34 | `farm_reach120` (run C3) | `ae40d37` | **3.88** | `best` (3.48) + crates and cubes up to 120 m away (was 80 m). **First score under scorer builders-4** (96 fresh random seeds per run, see below), so not directly comparable with the fixed-seed scores above. Kept (highest score; more cubes is a sound mechanism); now part of `best`. |
-| 35 | `arm` (run D1) | – | pending | `best` + arm up early: remember every weapon pickup seen and, while slot 1 is empty and no hunter is within 50 m, walk to the nearest street-level lightning up to 200 m away. Lightning does 240 damage/s within 45 m with no aiming (the gun sustains ~100/s), and combat only took a lightning visible within 40 m: in the recorded match four were seen at 81-196 m and slot 1 stayed empty. Squad simulator: armed in 31/40 matches at ~29 s (vs 24/40 at ~70 s). |
+| 35 | `arm` (run D1) | `442dfb9` | **4.05** | `best` + arm up early: remember every weapon pickup seen and, while slot 1 is empty and no hunter is within 50 m, walk to the nearest street-level lightning up to 200 m away. Lightning does 240 damage/s within 45 m with no aiming (the gun sustains ~100/s), and combat only took a lightning visible within 40 m: in the recorded match four were seen at 81-196 m and slot 1 stayed empty. Squad simulator: armed in 31/40 matches at ~29 s (vs 24/40 at ~70 s). **4.05, highest so far** (+0.17 over C3, within the ±0.3 noise, but a sound mechanism the simulator confirms). Kept; now part of `best`; picked as final entry. |
+| 36 | `press` (run D2) | – | pending | `best` (4.05) + `fight.press`: holding lightning with energy ≥ 35 and HP ≥ 50%, and with exactly one fresh hunter 32-90 m away, step in to 25 m so lightning (45 m range) reaches it. Squad simulator: 4.75 vs 4.00, lightning damage 2,594 vs 1,601 per match; but the simulator's house bots carry only a gun, so stepping into their lightning range isn't modelled. |
 
 ## Batch 1 (done)
 
@@ -367,7 +368,12 @@ Bugs that misread the rules cost more than any tuning (the trigger-timing bug al
    - A2: mode detection locked to practice at 2:00. It now also switches on two laser beams from one mech
      ending on another mech far from us, at any time.
    - A3: the farmed drone's position was frozen at first sight. Fixed.
-   - A4 (open): lightning skips a mech target when an NPC is the closest threat. Goes in the final run.
+   - A4: withdrawn, not a bug. `threat` comes from `laser_threat`, which only returns a mech charging a
+     laser, so the `kind == "mech"` check only stops lightning at an attacking NPC drone (saves energy).
+6. **Decision timing, 2026-11-22** (squad simulator, 40 matches, plus crowded-view stress test): p99
+   0.7 ms, max ~19 ms locally; 15 extra mechs in view cost ~2 ms. The rare spikes are pathfinding
+   (max ~18 ms); hide search and GC stay under 7 ms. The 1-CPU container is ~2.7x slower (check.py
+   p50 0.9 vs 2.5 ms), so about one late decision per match at worst (a 0.1 s coast). No change made.
 
 Repeat the audit after each new module, and add a synthetic test for every rule the recording
 can't exercise.

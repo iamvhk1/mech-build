@@ -26,6 +26,11 @@ SPLIT_RANGE_M = 110.0     # hunters this close count for the split
 SPLIT_FRESH_S = 5.0       # ...if seen this recently (a guessed position from a hit is too vague)
 SPLIT_STEP_M = 20.0       # step this far away from the trailing hunters
 ZONE_MARGIN_S = 10.0      # don't step somewhere the zone covers within ETA + this
+PRESS_TO_M = 25.0         # press: close to this distance from a lone hunter (lightning reaches 45 m)
+PRESS_FROM_M = 32.0       # ...when it is farther than this
+PRESS_MAX_M = 90.0        # ...and not farther than this
+PRESS_MIN_HP = 0.50
+PRESS_MIN_ENERGY = 35.0   # ~4 s of arcs (3 energy per 0.25 s shot)
 
 
 class Pacer:
@@ -79,7 +84,25 @@ class Pacer:
                     self.mode = f"loot {c.id}"
                     return (c.pos[0], c.pos[1])
 
-        # 2) split the hunters
+        # 2) press a lone hunter into lightning range (we hold lightning, healthy, energy to spare)
+        if tuning.get("fight.press") and len(fresh) == 1 and hp >= PRESS_MIN_HP and \
+                float(me.get("energy", 0.0)) >= PRESS_MIN_ENERGY and \
+                any(w and w.get("kind") == "lightning" for w in (me.get("weapons") or [])):
+            h = fresh[0]
+            hp_ = h.pos_at(tt)
+            d = math.dist(hp_[:2], pos[:2])
+            if PRESS_FROM_M < d <= PRESS_MAX_M:
+                ux, uy = (pos[0] - hp_[0]) / d, (pos[1] - hp_[1]) / d
+                goal = (hp_[0] + ux * PRESS_TO_M, hp_[1] + uy * PRESS_TO_M)
+                if self.core is not None:
+                    r = float((me.get("stats") or {}).get("radius", 2.5))
+                    q = self.core.nearest_walkable(goal[0], goal[1], r, False)
+                    goal = (q[0], q[1]) if q is not None else None
+                if goal is not None and self._zone_ok(zone, goal, pos, walk):
+                    self.mode = f"press {h.id} {d:.0f}m"
+                    return goal
+
+        # 3) split the hunters
         if tuning.get("pacing.split") and len(fresh) >= 2:
             fresh.sort(key=lambda h: math.dist(h.pos_at(tt)[:2], pos[:2]))
             rest = [h.pos_at(tt) for h in fresh[1:]]

@@ -150,7 +150,7 @@ class Match:
         self.last_combat_t = -1e9
         self.kills = 0
         self.zone_deaths = 0
-        self.stats = {"loot": 0, "split": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
+        self.stats = {"loot": 0, "split": 0, "press": 0, "ganged_s": 0.0, "retreat_s": 0.0, "max_ms": 0.0,
                       "errors": 0, "cubes": 0, "error_text": "", "armed_t": None, "lightning_dmg": 0.0}
         self.hit_log = []  # (t, hunter id)
         self._wrap_pacer()
@@ -162,7 +162,7 @@ class Match:
         def plan(*a, **k):
             g = real(*a, **k)
             if g is not None:
-                key = "loot" if p.mode.startswith("loot") else "split"
+                key = p.mode.split(" ")[0]
                 self.stats[key] += 1
             return g
         p.plan = plan
@@ -517,7 +517,7 @@ def summary(name, rs):
     armed_t = sum(r["armed_t"] for r in rs if r["armed_t"] is not None) / max(1, armed)
     return (f"{name:14s} points {mean('points'):5.2f}  death t {mean('t'):5.0f}s  kills {mean('kills'):4.2f}  "
             f"cubes {mean('cubes'):4.1f}  ganged {mean('ganged_s'):5.1f}s  retreat {mean('retreat_s'):5.1f}s  "
-            f"loot {mean('loot'):5.1f}  split {mean('split'):5.1f}  zone deaths {mean('zone_deaths'):4.2f}  "
+            f"loot {mean('loot'):5.1f}  split {mean('split'):5.1f}  press {mean('press'):5.1f}  zone deaths {mean('zone_deaths'):4.2f}  "
             f"armed {armed}/{n} (t {armed_t:4.0f}s)  lightning dmg {mean('lightning_dmg'):6.0f}  "
             f"errors {sum(r['errors'] for r in rs)}  max {max(r['max_ms'] for r in rs):5.1f} ms")
 

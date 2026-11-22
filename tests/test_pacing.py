@@ -93,6 +93,28 @@ class PacingTest(unittest.TestCase):
         o = self.step(make_obs((0, 0, 0), mechs=[aimed(6, (40, 0, 0))], t=50.0))
         self.assertIsNone(self.plan(o))
 
+    def lightning_obs(self, mechs, t=50.0, energy=100.0):
+        ws = [{"kind": "gun", "cooldown": 0.0, "ammo": 12, "reload": 0, "stats": dict(CFG["weapons"]["gun"])},
+              {"kind": "lightning", "cooldown": 0.0, "stats": dict(CFG["weapons"]["lightning"])}]
+        return self.step(make_obs((0, 0, 0), mechs=mechs, t=t, weapons=ws, energy=energy))
+
+    def test_press_closes_on_a_lone_hunter_with_lightning(self):
+        tuning.use("press")
+        o = self.lightning_obs([aimed(6, (70, 0, 0))])
+        g = self.plan(o)
+        self.assertIsNotNone(g)
+        self.assertTrue(self.p.mode.startswith("press"))
+        self.assertAlmostEqual(g[0], 45.0, delta=0.5)  # 25 m short of the hunter, on our side
+
+    def test_no_press_without_lightning_energy_hp_or_when_two_hunters(self):
+        tuning.use("press")
+        self.assertIsNone(self.plan(self.step(make_obs((0, 0, 0), mechs=[aimed(6, (70, 0, 0))], t=50.0))))
+        self.assertIsNone(self.plan(self.lightning_obs([aimed(6, (70, 0, 0))], t=51.0, energy=20.0)))
+        self.assertIsNone(self.plan(self.lightning_obs([aimed(6, (70, 0, 0)), aimed(7, (-60, 30, 0))], t=52.0)))
+        self.assertIsNone(self.plan(self.lightning_obs([aimed(6, (28, 0, 0))], t=53.0)))  # already close
+        tuning.use("best")
+        self.assertIsNone(self.plan(self.lightning_obs([aimed(6, (70, 0, 0))], t=54.0)))
+
     def test_no_split_into_the_zone(self):
         o = self.step(make_obs((0, 0, 0), mechs=[aimed(6, (40, 0, 0)), aimed(7, (0, 80, 0))], t=50.0))
         self.assertIsNone(self.plan(o, zone=FakeZone(left=1.0)))

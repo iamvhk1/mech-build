@@ -33,9 +33,10 @@ class ArmTest(unittest.TestCase):
         self.th.update(o)
         return self.a.plan(o, None, self.th.hunters(o["self"]["pos"]), self.th, 11.7)
 
-    def test_preset_is_best_plus_arm(self):
-        b = tuning._resolve("best")
-        self.assertEqual({k: v for k, v in tuning._resolve("arm").items() if v != b[k]}, {"arm.early": True})
+    def test_best_includes_arm(self):
+        """Since run D1 (4.05), best arms up; the arm preset is the same bot."""
+        self.assertTrue(tuning._resolve("best")["arm.early"])
+        self.assertEqual(tuning._resolve("arm"), tuning._resolve("best"))
 
     def test_remembers_a_far_lightning_and_goes_for_it(self):
         o = make_obs((0, 0, 0), t=5.0, pickups=[pk(8001, "lightning", (150, 0)), pk(8002, "laser", (30, 0))])
@@ -61,7 +62,7 @@ class ArmTest(unittest.TestCase):
         hunted = make_obs((0, 0, 0), t=6.0, mechs=[mech(5, (30, 0, 0), aim=(math.pi, 0.0))])
         self.a.observe(hunted)
         self.assertIsNone(self.plan(hunted))
-        tuning.use("best")
+        tuning.use("pacing_loot")  # arm.early off
         self.assertIsNone(self.plan(make_obs((0, 0, 0), t=7.0)))
 
     def test_forgets_a_taken_pickup(self):
