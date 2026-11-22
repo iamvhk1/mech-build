@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "drops"
+ACTIVE = "late180"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -55,6 +55,8 @@ DEFAULTS = {
     # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
     # the score reads out the place points earned before it
     "probe.idle_at": None,
+    # late-match caution (practice): from this match time on, apply LATE_OVERLAY (None = never)
+    "late.at": None,
 }
 
 PRESETS = {
@@ -171,6 +173,11 @@ PRESETS = {
     "probe_idle240": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                       "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                       "farm.crates": True, "farm.cubes": True, "mode.detect": True, "probe.idle_at": 240.0},
+    # Batch C, C1: best + more conservative retreat from 3:00 (probes: we earn most points 2:00-4:00
+    # and die around 3:00-4:30, when several hunters are on us at once)
+    "late180": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                "farm.crates": True, "farm.cubes": True, "mode.detect": True, "late.at": 180.0},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
@@ -201,7 +208,18 @@ FFA_OVERLAY = {
     "drops.enabled": True,
 }
 
+# Late-match caution (practice only): back off and heal earlier when hunters gang up, but keep
+# shooting back (holding fire lost badly in E1: placement in practice comes from kills)
+LATE_OVERLAY = {
+    "retreat.hp_enter": 0.50,
+    "retreat.hp_exit": 0.90,
+    "retreat.on_hunters": True,
+    "retreat.on_heavy_damage": True,
+    "retreat.hold_fire": False,
+}
+
 CURRENT_MODE = "practice"
+CURRENT_LATE = False
 
 
 def _resolve(name: str) -> dict:
@@ -219,14 +237,32 @@ def get(key: str, default=None):
     return SETTINGS.get(key, default)
 
 
+def _apply() -> None:
+    global SETTINGS
+    s = _resolve(ACTIVE)
+    if CURRENT_MODE == "ffa":
+        s.update(FFA_OVERLAY)
+    elif CURRENT_LATE:
+        s.update(LATE_OVERLAY)
+    SETTINGS = s
+
+
 def set_mode(mode: str) -> None:
     """Apply mode overlay ('practice' or 'ffa')."""
-    global SETTINGS, CURRENT_MODE
+    global CURRENT_MODE
     CURRENT_MODE = mode
-    s = _resolve(ACTIVE)
-    if mode == "ffa":
-        s.update(FFA_OVERLAY)
-    SETTINGS = s
+    _apply()
+
+
+def set_late(late: bool) -> None:
+    """Apply (or clear) the late-match overlay; ignored in free-for-all mode."""
+    global CURRENT_LATE
+    CURRENT_LATE = bool(late)
+    _apply()
+
+
+def is_late() -> bool:
+    return CURRENT_LATE
 
 
 def get_mode() -> str:
@@ -235,7 +271,8 @@ def get_mode() -> str:
 
 def use(name: str) -> None:
     """Switch preset at runtime (tests)."""
-    global SETTINGS, ACTIVE, CURRENT_MODE
+    global SETTINGS, ACTIVE, CURRENT_MODE, CURRENT_LATE
     CURRENT_MODE = "practice"
+    CURRENT_LATE = False
     SETTINGS = _resolve(name)
     ACTIVE = name

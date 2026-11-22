@@ -67,6 +67,7 @@ class Bot:
         self.dropper = DropContester(self.core, self.cfg)
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
+        tuning.set_late(False)
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -198,6 +199,9 @@ class Bot:
         self.farmer.observe(obs)
         self.dropper.observe(obs)
         self.mode_detector.observe(obs, self.zone)
+        late_at = tuning.get("late.at")
+        if late_at is not None and t >= float(late_at) and not tuning.is_late():
+            tuning.set_late(True)  # late-match caution from here on (practice only)
         targets = self.combat.targets(obs)
         walk = float(st.get("walk_speed", self.cfg["mech"]["walk_speed"]))
         inside = bool(me.get("in_zone", True))

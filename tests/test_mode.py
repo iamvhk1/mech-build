@@ -153,5 +153,29 @@ class ModeDetectionTest(unittest.TestCase):
         self.assertEqual(self.detector.mode, "practice")
 
 
+class LateOverlayTest(unittest.TestCase):
+    def setUp(self):
+        self._saved = tuning.ACTIVE
+        tuning.use("late180")
+
+    def tearDown(self):
+        tuning.use(self._saved)
+
+    def test_late_overlay_only_in_practice(self):
+        self.assertEqual(tuning.get("late.at"), 180.0)
+        self.assertFalse(tuning.get("retreat.on_hunters"))
+        tuning.set_late(True)
+        self.assertTrue(tuning.get("retreat.on_hunters"))
+        self.assertTrue(tuning.get("retreat.on_heavy_damage"))
+        self.assertEqual(tuning.get("retreat.hp_enter"), 0.50)
+        self.assertFalse(tuning.get("retreat.hold_fire"))  # keep shooting back
+        tuning.set_mode("ffa")  # free-for-all settings win over the late overlay
+        self.assertFalse(tuning.get("retreat.on_hunters"))
+        tuning.set_mode("practice")
+        self.assertTrue(tuning.get("retreat.on_hunters"))
+        tuning.use("late180")  # a fresh preset clears it
+        self.assertFalse(tuning.is_late())
+        self.assertFalse(tuning.get("retreat.on_hunters"))
+
 if __name__ == "__main__":
     unittest.main()

@@ -197,5 +197,32 @@ class DropsDoNotBlockFarmingTest(unittest.TestCase):
                 self.assertEqual(p, {"tick": a["tick"]})
         self.assertTrue(any(t < 20.0 for t in ticks_t) and any(t >= 20.0 for t in ticks_t))
 
+    def test_late180_is_best_before_three_minutes(self):
+        """The recording ends at 36.8 s, so late180 must act exactly like best on it."""
+        self.assertEqual(self.actions("late180"), self.actions("best"))
+
+    def test_late_switch_turns_on_at_late_at(self):
+        tuning.PRESETS["_late_test"] = dict(tuning.PRESETS["best"], **{"late.at": 20.0})
+        try:
+            self.actions("_late_test")
+            # actions() restores the preset afterwards; check the bot flipped it during the replay
+            tuning.use("_late_test")
+            import bot as B
+            import gzip
+            import json
+            with gzip.open(os.path.join(ROOT, "check", "stream.jsonl.gz"), "rt") as f:
+                L = [json.loads(line) for line in f]
+            L[0]["map"]["dir"] = os.path.join(ROOT, "arena")
+            b = B.Bot(L[0])
+            seen = []
+            for o in L[1:]:
+                if o.get("type") == "obs":
+                    b.act(o)
+                    seen.append((o["t"], tuning.is_late()))
+            self.assertTrue(all(late == (t >= 20.0) for t, late in seen))
+        finally:
+            tuning.use("best")
+            del tuning.PRESETS["_late_test"]
+
 if __name__ == "__main__":
     unittest.main()
