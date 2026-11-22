@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "near40"
+ACTIVE = "near90"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -101,9 +101,11 @@ PRESETS = {
     "focus_strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.focus": True,
                      "fight.strafe": True},
-    # interaction re-test after the trigger-timing fix: engage mechs within 90 m (was 60 m)
+    # Stage G, run G1b: best + engage mechs within 90 m (was 60 m; 40 m lost in G1). Rebased on the
+    # current best (the old near90 predated strafing, farming and mode detection).
     "near90": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "engage.near_m": 90.0},
+               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "engage.near_m": 90.0},
     # run 1d (2.02, worse), rebased on the best so far (picker_lastresort, 2.54): only engage.any_in_range changes
     "picker_aggressive": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                           "retreat.on_heavy_damage": False, "retreat.hold_fire": False,
@@ -140,6 +142,19 @@ PRESETS = {
     "exit70": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.70, "retreat.on_hunters": False,
                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                "farm.crates": True, "farm.cubes": True, "mode.detect": True},
+    # Stage G, farming gates (cube collection was the largest single gain, +0.38)
+    # G5: farm with hunters closer (no known hunter within 80 m instead of 120 m)
+    "farm_safe80": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.safe_m": 80.0},
+    # G6: look further for crates/cubes (120 m instead of 80 m)
+    "farm_reach120": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.max_dist": 120.0},
+    # G7: farm at lower HP (45% instead of 60%); cubes also heal
+    "farm_hp45": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                  "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.min_hp": 0.45},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
