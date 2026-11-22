@@ -21,6 +21,8 @@ LOOT_WINDOW_S = 15.0      # go for a kill's cubes for this long after the kill
 LOOT_RADIUS_M = 15.0      # cubes this close to where the mech died are its drop
 LOOT_MAX_M = 60.0         # ...and at most this far from us
 LOOT_MIN_HP = 0.20        # don't walk into the open for cubes below this HP fraction
+LOOT_MORE_WINDOW_S = 30.0  # pacing.loot_more: remember every kill this long (not only the last one)
+LOOT_RETREAT_M = 30.0     # ...and loot cubes this close even while retreating, at any HP / hunter count
 LOOT_CLOSE_M = 50.0       # skip looting with 2+ hunters this close
 SPLIT_RANGE_M = 110.0     # hunters this close count for the split
 SPLIT_FRESH_S = 5.0       # ...if seen this recently (a guessed position from a hit is too vague)
@@ -42,6 +44,7 @@ class Pacer:
         self.last_seen: Dict[int, Tuple[float, float, float]] = {}
         self.kill_t = -1e9
         self.kill_pos: Optional[Sequence[float]] = None
+        self.kills: List[Tuple[float, Sequence[float]]] = []  # (t, where) of recent kills
         self.mode = ""
 
     def observe(self, obs: dict) -> None:
@@ -55,11 +58,44 @@ class Pacer:
                 p = self.last_seen.get(int(e.get("target", -1)))
                 if p is not None:
                     self.kill_t, self.kill_pos = t, p
+                    self.kills.append((t, p))
+        self.kills = [k for k in self.kills if t - k[0] <= LOOT_MORE_WINDOW_S]
 
     def _zone_ok(self, zone, p, pos, walk: float) -> bool:
         if zone is None or not getattr(zone, "known", False):
             return True
         return zone.time_until_outside(p) > math.dist(p[:2], pos[:2]) / max(1.0, walk) + ZONE_MARGIN_S
+
+    def loot_goal(self, obs: dict, zone, hunters, threats, cubes, walk: float,
+                  retreating: bool) -> Optional[Tuple[float, float]]:
+        """pacing.loot_more: the nearest cube dropped by any kill in the last 30 s. Cubes within
+        LOOT_RETREAT_M are taken at any HP and hunter count (once the squad has found us, running
+        doesn't heal; a cube heals 4% and adds 4% damage). Farther ones (up to LOOT_MAX_M) only
+        when not retreating, HP >= LOOT_MIN_HP and at most one hunter within LOOT_CLOSE_M."""
+        if not self.kills:
+            return None
+        me = obs["self"]
+        pos = me["pos"]
+        t = float(obs["t"])
+        hp = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
+        tt = getattr(threats, "t", t)
+        close = sum(1 for h in hunters if t - h.t_seen < SPLIT_FRESH_S
+                    and math.dist(h.pos_at(tt)[:2], pos[:2]) <= LOOT_CLOSE_M)
+        far_ok = not retreating and hp >= LOOT_MIN_HP and close <= 1
+        best, bd = None, 1e9
+        for c in cubes.values():
+            if not any(math.dist(c.pos[:2], kp[:2]) <= LOOT_RADIUS_M for _, kp in self.kills):
+                continue
+            d = math.dist(c.pos[:2], pos[:2])
+            if d > (LOOT_MAX_M if far_ok else LOOT_RETREAT_M) or d >= bd:
+                continue
+            if not self._zone_ok(zone, c.pos, pos, walk):
+                continue
+            best, bd = c, d
+        if best is None:
+            return None
+        self.mode = f"loot {best.id}"
+        return (best.pos[0], best.pos[1])
 
     def plan(self, obs: dict, zone, hunters, threats, cubes, walk: float) -> Optional[Tuple[float, float]]:
         """(x, y) goal, or None to leave the decision to drops / farming / the zone destination.
@@ -73,8 +109,12 @@ class Pacer:
         fresh = [h for h in hunters if t - h.t_seen < SPLIT_FRESH_S
                  and math.dist(h.pos_at(tt)[:2], pos[:2]) <= SPLIT_RANGE_M]
 
-        # 1) loot the kill's cubes
-        if self.kill_pos is not None and t - self.kill_t <= LOOT_WINDOW_S and hp >= LOOT_MIN_HP:
+        # 1) loot the kill's cubes (with pacing.loot_more: every recent kill, see loot_goal)
+        if tuning.get("pacing.loot_more"):
+            g = self.loot_goal(obs, zone, hunters, threats, cubes, walk, retreating=False)
+            if g is not None:
+                return g
+        elif self.kill_pos is not None and t - self.kill_t <= LOOT_WINDOW_S and hp >= LOOT_MIN_HP:
             close = sum(1 for h in fresh if math.dist(h.pos_at(tt)[:2], pos[:2]) <= LOOT_CLOSE_M)
             if close <= 1:
                 drop = [c for c in cubes.values()

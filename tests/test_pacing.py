@@ -132,6 +132,29 @@ class PacingTest(unittest.TestCase):
         tuning.use("laser")  # hunt off
         self.assertIsNone(self.plan(self.lightning_obs([mech(6, (150, 0, 0))], t=61.0)))
 
+    def test_loot_more_remembers_every_recent_kill(self):
+        tuning.use("loot_more")
+        self.step(make_obs((0, 0, 0), mechs=[aimed(5, (30, 0, 0)), aimed(6, (-40, 0, 0))], t=19.0))
+        self.step(make_obs((0, 0, 0), t=20.0, events=[{"type": "kill", "target": 5}]))
+        o = self.step(make_obs((0, 0, 0), t=25.0, events=[{"type": "kill", "target": 6}]))
+        cubes = {5001: Item(5001, (31, 1, 0), 0, 20.0)}  # the FIRST kill's drop
+        self.assertEqual(self.plan(o, cubes), (31, 1))
+        late = make_obs((0, 0, 0), t=48.0)  # 28 s after the first kill: still remembered (30 s)
+        self.th.update(late)
+        self.assertEqual(self.plan(late, cubes), (31, 1))
+
+    def test_loot_more_takes_close_cubes_while_retreating_at_low_hp(self):
+        tuning.use("loot_more")
+        o = self.kill_at()
+        o["self"]["hp"] = 200  # 14%: below the normal loot floor
+        hunters = self.th.hunters(o["self"]["pos"])
+        close = {5001: Item(5001, (25, 0, 0), 0, 20.0)}
+        far = {5002: Item(5002, (45, 0, 0), 0, 20.0)}
+        self.assertEqual(self.p.loot_goal(o, None, hunters, self.th, close, 11.7, retreating=True), (25, 0))
+        self.assertIsNone(self.p.loot_goal(o, None, hunters, self.th, far, 11.7, retreating=True))
+        tuning.use("best")  # switch off: the normal loot rule keeps its HP floor
+        self.assertIsNone(self.plan(o, close))
+
     def test_no_split_into_the_zone(self):
         o = self.step(make_obs((0, 0, 0), mechs=[aimed(6, (40, 0, 0)), aimed(7, (0, 80, 0))], t=50.0))
         self.assertIsNone(self.plan(o, zone=FakeZone(left=1.0)))

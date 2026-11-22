@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "rush_drones"
+ACTIVE = "loot_more"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -46,6 +46,7 @@ DEFAULTS = {
     "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
     "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
     "pacing.split": True,
+    "pacing.loot_more": False,      # E3: loot every recent kill (30 s), and close cubes even while retreating
     "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
     "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
     "hunt.max_m": 250.0,
@@ -91,226 +92,14 @@ PRESETS = {
     # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept; + arm up early with a
     # remembered lightning (run D1) 4.05; + press a lone hunter into lightning range (run D2) 4.19;
     # + FFA/zone fixes (8b5a7d5) 4.30; + laser fallback with the laser aim fix (run D3) 4.46;
-    # + hunt the only known mech (run D4) 4.59, practice only (FFA_OVERLAY turns it off)
+    # + hunt the only known mech (run D4) 4.59, practice only (FFA_OVERLAY turns it off);
+    # + early phase rush and NPC drone hunting (run E4) 4.67, practice only
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-             "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True},
-    # Stage B, run B1: best + fight from cover
-    "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
-    # best + blind fire at unseen attackers (foliage hides them; bullets pass trees)
-    "blind": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.blind_fire": True},
-    # Stage B, run B3: best + focus fire
-    "focus": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.focus": True},
-    # Stage C, run C1: best (incl. strafing) + crates
-    "crates": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True},
-    # Stage C, run C3: best + collect any visible cube (kill drops, floor cubes)
-    "cubes": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-              "farm.crates": True, "farm.cubes": True},
-    # Stage C: re-test upgrade order (run U1): best + choice 0 only (compare against 3.38)
-    "upgrade_first": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                      "farm.crates": True, "farm.cubes": True, "upgrades": "first"},
-    # Stage C, run C2: best + hunt isolated drones for 2 cubes each
-    "drones": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True, "farm.cubes": True, "farm.drones": True},
-    # Stage B: strafing on the plain best (used if focus fire doesn't win)
-    "strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True},
-    # Stage B: focus fire + strafing (compared against the focus run)
-    "focus_strafe": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                     "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.focus": True,
-                     "fight.strafe": True},
-    # Stage G, run G1b: best + engage mechs within 90 m (was 60 m; 40 m lost in G1). Rebased on the
-    # current best (the old near90 predated strafing, farming and mode detection).
-    "near90": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "engage.near_m": 90.0},
-    # run 1d (2.02, worse), rebased on the best so far (picker_lastresort, 2.54): only engage.any_in_range changes
-    "picker_aggressive": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                          "retreat.on_heavy_damage": False, "retreat.hold_fire": False,
-                          "engage.any_in_range": True},
-    # roadmap item 2: rooftop test, on top of the best so far (picker_lastresort, 2.54)
-    "roof_camp": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "roof.enabled": True},
-    # Stage D, run D1: best + mode detection & FFA overlay
-    "mode_detect": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                    "farm.crates": True, "farm.cubes": True, "mode.detect": True},
-    # Stage E, run Z1: best + final burn positioning
-    "burn": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "burn.enabled": True},
-    # Stage F, run F1: best + supply drop contesting
-    "drops": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True},
-    # Stage G: tuning sweeps on best
-    # G1: engage closer (40 m vs 60 m baseline) to avoid picking fights with distant squad members
-    "near40": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "engage.near_m": 40.0},
-    # G2: delay retreat to 25% HP (fight back longer)
-    "retreat25": {"retreat.hp_enter": 0.25, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                  "farm.crates": True, "farm.cubes": True, "mode.detect": True},
-    # G3: retreat earlier to 45% HP (preserve HP pool)
-    "retreat45": {"retreat.hp_enter": 0.45, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                  "farm.crates": True, "farm.cubes": True, "mode.detect": True},
-    # G4: exit retreat earlier at 70% HP
-    "exit70": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.70, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True, "farm.cubes": True, "mode.detect": True},
-    # Stage G, farming gates (cube collection was the largest single gain, +0.38)
-    # G5: farm with hunters closer (no known hunter within 80 m instead of 120 m)
-    "farm_safe80": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.safe_m": 80.0},
-    # G6 / C3: look further for crates/cubes (120 m instead of 80 m); rebased on best (3.48) for C3
-    "farm_reach120": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-                      "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0},
-    # G7: farm at lower HP (45% instead of 60%); cubes also heal
-    "farm_hp45": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                  "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.min_hp": 0.45},
-    # Batch B (2026-11-22), B1: hold the next zone centre all match (burn mode from t = 0: navigate to
-    # the centre, fight from there, no retreat) and let the zone thin the squad
-    "center": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True, "farm.cubes": True, "mode.detect": True,
-               "burn.enabled": True, "burn.radius": 1000.0},
-    # B2/B3 diagnostic probes: best until T, then idle (score = place points earned by T)
-    "probe_idle120": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "probe.idle_at": 120.0},
-    "probe_idle240": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                      "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "probe.idle_at": 240.0},
-    # Batch C, C1: best + more conservative retreat from 3:00 (probes: we earn most points 2:00-4:00
-    # and die around 3:00-4:30, when several hunters are on us at once)
-    "late180": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-                "late.at": 180.0},
-    # Batch C, C2: best + escalation survival (pacing.py)
-    "pacing": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-               "fight.pacing": True},
-    # C2 diagnostics: pacing scored 3.46, an exact tie with best. Does each rule ever fire in practice?
-    # Each plays `pacing` and stands still from the first time its rule fires (3.46 = never fires).
-    "probe_loot": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                   "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-                   "fight.pacing": True, "probe.idle_on_pace": "loot"},
-    "probe_split": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-                    "fight.pacing": True, "probe.idle_on_pace": "split"},
-    # C2c: pacing with the loot rule only (probe_loot 1.60: loot fires in practice; does it help?)
-    "pacing_loot": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-                    "fight.pacing": True, "pacing.split": False},
-    # D1: best + arm up early (remembered lightning pickups up to 200 m; the gun alone sustains ~100
-    # damage/s, lightning adds 240/s within 45 m with no aiming)
-    "arm": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-            "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-            "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-            "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True},
-    # D2: best (with arm, 4.05) + press a lone hunter into lightning range
-    "press": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-              "fight.press": True},
-    # D3: best (with press, 4.19) + laser fallback from 45 s (with the laser aim fix in combat.py)
-    "laser": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-              "fight.press": True, "arm.laser_after": 45.0},
-    # D4: best (4.19) + hunt the lone early hunter (with lightning, up to 250 m)
-    "hunt": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-             "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True},
-    # D5: best (4.19) + contest drops with up to one known mech near (fighting it if needed)
-    "drops_bold": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                   "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-                   "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-                   "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "drops.max_threats": 1},
-    # E1 fortress: roof play only from this match time (None = whole match)
-    # fight quality (master plan Stage B)
-    "fight.cover": False,           # B1: fight from cover (step out to fire, back to reload / after hits)
-    "fight.blind_fire": False,      # fire back along the damage bearing at attackers we can't see
-    "fight.focus": False,           # B3: stay on one target, prefer quickest kills, finish wounded targets
-    "fight.strafe": False,          # strafe sideways while fighting (safeguarded: walls, zone, exposure)
-    "fight.pacing": False,          # C2: escalation survival (loot a kill's cubes, split ganging hunters)
-    "pacing.split": True,
-    "fight.press": False,           # D2: with lightning, close to ~25 m on a lone hunter (pacing.py)
-    "fight.hunt": False,            # D4: with lightning, go after the only mech we know of (pacing.py)
-    "hunt.max_m": 250.0,
-    "arm.early": False,             # walk to a remembered lightning (up to arm.max_dist) while slot 1 is empty
-    "arm.max_dist": 200.0,
-    "arm.laser_after": None,        # D3: from this match time, take a laser if no lightning is within reach
-    "arm.safe_m": 50.0,             # ...only with no hunter this close           # ...including the split rule (C2c tests loot alone)
-    # cube economy (master plan Stage C)
-    "farm.crates": False,           # C1: shoot street-level crates and collect their cube when safe
-    "farm.cubes": False,            # C3: also collect any other visible cube (kill drops) when safe
-    "farm.drones": False,           # C2: hunt isolated NPC drones (2 cubes each) when safe
-    "farm.drone_min_hp": 0.90,      # HP fraction required to farm drones
-    "farm.drone_dist_min": 30.0,    # stand-and-shoot minimum distance from drone
-    "farm.drone_dist_max": 50.0,    # stand-and-shoot maximum distance from drone
-    "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
-    "farm.min_hp": 0.6,             # ...and HP at least this fraction (crates/cubes)
-    "farm.max_dist": 80.0,          # consider crates/cubes/drones within this distance
-    # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
-    # the score reads out the place points earned before it
-    "probe.idle_at": None,
-    "probe.idle_on_pace": "",       # "loot" / "split": stand still from the first time that pacing rule fires
-    # late-match caution (practice): from this match time on, apply LATE_OVERLAY (None = never)
-    "late.at": None,
-    # early-match cube rush (practice): until this match time, apply EARLY_OVERLAY (None = never)
-    "early.until": None,
-}
-
-PRESETS = {
-    # Phase 3 as submitted (score 2.33): first upgrade choice, no retreat
-    "p3": {"upgrades": "first", "retreat.enabled": False},
-    # E1 as submitted (score 1.52)
-    "e1": {},
-    # batch 1
-    "p3_picker": {"retreat.enabled": False},
-    "picker_lastresort": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-                          "retreat.on_heavy_damage": False, "retreat.hold_fire": False},
-    # best so far: run 1c settings (2.54); + trigger-timing fix (code, run B0) 2.90; + shootability
-    # fix (code, B0b) 2.85; + strafing (run B-strafe) 2.88, kept by decision despite the tie;
-    # + crate farming (run C1) 3.00; + all visible cubes (run C3) 3.38; + mode detection (run D1b) 3.38
-    # + supply drops with the A1 fix (run B4) 3.46; + loot a kill's cubes (run C2c) 3.48, kept by
-    # decision despite the tie (highest score so far; plausible mechanism); + crates/cubes up to 120 m
-    # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept; + arm up early with a
-    # remembered lightning (run D1) 4.05; + press a lone hunter into lightning range (run D2) 4.19;
-    # + FFA/zone fixes (8b5a7d5) 4.30; + laser fallback with the laser aim fix (run D3) 4.46;
-    # + hunt the only known mech (run D4) 4.59, practice only (FFA_OVERLAY turns it off)
-    "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
-             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
-             "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-             "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True},
+             "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True,
+             "early.until": 120.0, "early.drones": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -494,6 +283,14 @@ PRESETS = {
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
               "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
               "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0, "early.drones": True},
+    # E3: best (4.67) + loot every kill of the last 30 s (not only the last), and kill cubes within 30 m
+    # even while retreating (visualizer replays: fled from drops at low HP, lost the first of two kills)
+    "loot_more": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+                  "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+                  "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                  "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+                  "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+                  "early.drones": True, "pacing.loot_more": True},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
