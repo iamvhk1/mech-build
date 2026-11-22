@@ -203,6 +203,11 @@ class Strategy:
         if many_n is not None and hp < float(tuning.get("retreat.many_hp")) and \
                 sum(1 for hh in hunters if math.dist(hh.pos_at(t)[:2], pos[:2]) <= MANY_RANGE_M) >= int(many_n):
             many = True
+        # retreat.scaled: retreat earlier the more hunters are close (2 within 75 m: 50%, 3+: 65%)
+        if tuning.get("retreat.scaled"):
+            n75 = sum(1 for hh in hunters if math.dist(hh.pos_at(t)[:2], pos[:2]) <= 75.0)
+            if (n75 >= 3 and hp < 0.65) or (n75 == 2 and hp < 0.50):
+                many = True
         heavy = heavy and tuning.get("retreat.on_heavy_damage")
         want_retreat = hp < tuning.get("retreat.hp_enter") or many or heavy
         healed = hp >= tuning.get("retreat.hp_exit") and not many
