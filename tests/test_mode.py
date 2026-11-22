@@ -204,6 +204,18 @@ class LateOverlayTest(unittest.TestCase):
     def tearDown(self):
         tuning.use(self._saved)
 
+    def test_ffa_turns_off_practice_only_aggression(self):
+        """Hunting and contested drops are practice-only; free-for-all keeps them off."""
+        tuning.use("drops_bold")
+        self.assertTrue(tuning.get("fight.hunt"))
+        self.assertEqual(tuning.get("drops.max_threats"), 1)
+        tuning.set_mode("ffa")
+        self.assertFalse(tuning.get("fight.hunt"))
+        self.assertEqual(tuning.get("drops.max_threats"), 0)
+        self.assertTrue(tuning.get("fight.press"))      # pressing a hunter already on us stays
+        self.assertTrue(tuning.get("arm.early"))
+        tuning.set_mode("practice")
+
     def test_late_overlay_only_in_practice(self):
         self.assertEqual(tuning.get("late.at"), 180.0)
         self.assertFalse(tuning.get("retreat.on_hunters"))

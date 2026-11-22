@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "hunt"
+ACTIVE = "drops_bold"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -86,12 +86,13 @@ PRESETS = {
     # decision despite the tie (highest score so far; plausible mechanism); + crates/cubes up to 120 m
     # (run C3) 3.88, the first score on builders-4 (96 random seeds), kept; + arm up early with a
     # remembered lightning (run D1) 4.05; + press a lone hunter into lightning range (run D2) 4.19;
-    # + FFA/zone fixes (8b5a7d5) 4.30; + laser fallback with the laser aim fix (run D3) 4.46
+    # + FFA/zone fixes (8b5a7d5) 4.30; + laser fallback with the laser aim fix (run D3) 4.46;
+    # + hunt the only known mech (run D4) 4.59, practice only (FFA_OVERLAY turns it off)
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-             "fight.press": True, "arm.laser_after": 45.0},
+             "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -247,7 +248,7 @@ PRESETS = {
                    "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                    "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
                    "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
-                   "fight.press": True, "arm.laser_after": 45.0, "drops.max_threats": 1},
+                   "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "drops.max_threats": 1},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
@@ -276,6 +277,9 @@ FFA_OVERLAY = {
     "burn.enabled": True,
     # supply drops in FFA: contest when safe
     "drops.enabled": True,
+    "drops.max_threats": 0,   # only uncontested drops: in a free-for-all, outliving others is what scores
+    # never go looking for fights in a free-for-all (practice-only: hunt scored 4.59 there, D4)
+    "fight.hunt": False,
 }
 
 # Late-match caution (practice only): back off and heal earlier when hunters gang up, but keep

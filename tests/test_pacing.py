@@ -129,7 +129,7 @@ class PacingTest(unittest.TestCase):
         self.th = ThreatTracker()
         self.assertIsNone(self.plan(self.step(make_obs((0, 0, 0), mechs=[mech(6, (150, 0, 0))], t=60.0))))
         self.th = ThreatTracker()
-        tuning.use("best")
+        tuning.use("laser")  # hunt off
         self.assertIsNone(self.plan(self.lightning_obs([mech(6, (150, 0, 0))], t=61.0)))
 
     def test_no_split_into_the_zone(self):
