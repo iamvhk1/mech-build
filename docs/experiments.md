@@ -54,7 +54,7 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Last-resort retreat, keep firing (run 1c) | **Good** (2.54, +0.23) | Good, but weaker than early retreat | Saves us when nearly dead without giving up fights | on | superseded by early retreat |
 | Roof camping (run 2) | **Bad** (2.23, −0.31) | Unknown | Cause unclear (the squad copes with roofs, or our climbing fails on the real server). In a FFA a roof could be a safe overlook, but we have no evidence it works at all | off | off unless evidence |
 | Shoot any mech in range (run 1d) | **Bad** (2.02, −0.52) | **Likely bad** | Long-range fights reveal us, start fights we don't need, and invite third parties; placement comes from surviving, not kills | off | off (opportunistic) |
-| Engage within 60 m / below 35% HP (Phase 3) | Baseline behaviour; 40 m **worse** (3.31 vs 3.38, run G1); 90 m pending (G1b) | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes). In practice kills are points, so engaging less costs score | 60 m / 35% (90 m pending) | keep 60 m (no FFA kill incentive to widen it) |
+| Engage within 60 m / below 35% HP (Phase 3) | **60 m is best:** 40 m worse (3.31, G1), 90 m worse (3.23, G1b) | Reasonable | Close mechs are threats anyway; low-HP targets are cheap kills (cubes). Engaging less loses kills; engaging further starts fights the squad wins | 60 m / 35% | keep 60 m (no FFA kill incentive to widen it) |
 | Lightning first, late mortar swap with laser check | Not tested separately | Same logic | Weapon triangle applies in both modes | as is | as is |
 | Trigger timing fix (always on) | **Good** (2.90, +0.36) | Positive | Bug fix: up to ~20% more gun damage in every fight | on | on |
 | Shootability fix (always on): prefer targets we can shoot; aim at the visible part | Tie (2.85 vs 2.90); kept for correctness and FFA | Positive | Bug fix: with two enemies, a hidden attacker blocked a clear shot at the other in 50/50 test cases; a low wall over the middle blocked shots at a visible upper body | on | on |
@@ -132,7 +132,8 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 21 | `burn` (run Z1) | `9edce64` | 3.38 | Final burn positioning on the 3.38 baseline: 3.38 vs 3.38 (exact tie). In practice against the 15-bot squad, matches rarely reach the final 25 m collapse at ~6:55, so practice score is dominated by early/mid-game kills. Center holding and suppressed retreat are essential in FFA end-games where surviving the 260 DPS burn decides 1st place. Kept off in practice `best`; enabled in `FFA_OVERLAY`. Baseline remains **3.38**. |
 | 22 | `drops` (run F1) | `5bfc603` | 2.81 | Safe supply drop contesting on the 3.38 baseline: 2.81 vs 3.38 (−0.57). Capturing an 8 m drop ring on open ground inside the closing circle pulls the bot into central crossfire where the 15-bot squad concentrates, leading to fatal focus-fire. Kept OFF in `best`. Retained in `FFA_OVERLAY` where enemy mechs scatter and +3 cubes + full HP heal is valuable in quiet pockets. Baseline remains **3.38**. |
 | 23 | `near40` (run G1) | `fcda789` | 3.31 | Tighter engagement distance (40 m vs 60 m) on the 3.38 baseline: worse (−0.07, ~3 places). Fewer engagements mean fewer kills, and kills are practice points. Together with run 1d (any range, 2.02) this brackets the best value at 60 m or a bit above. Keep 60 m; next try 90 m (G1b). |
-| 24 | `near90` (run G1b) | – | pending | Wider engagement distance (90 m vs 60 m) on the 3.38 baseline; `near90` rebased on `best` (the old preset predated strafing, farming and mode detection). |
+| 24 | `near90` (run G1b) | `f114606` | 3.23 | Wider engagement distance (90 m vs 60 m) on the 3.38 baseline (`near90` rebased on `best`): worse (−0.15, ~7 places). Longer-range fights against a squad that shares vision cost more than the extra kills earn (same lesson as run 1d). With G1 (40 m, −0.07) this confirms **60 m** as the best value; the sweep on `engage.near_m` is closed. |
+| 25 | `farm_safe80` (run G5) | – | pending | Farm with hunters closer: no known hunter within 80 m (was 120 m) on the 3.38 baseline. Cube collection was the largest single gain (+0.38); more farming windows may add cubes. |
 
 ## Batch 1 (done)
 
@@ -251,8 +252,8 @@ Stage F complete! Best score remains **3.38**. Next: Stage G (tuning sweeps on `
 
 Three values each for the settings that mattered, one run per value. Expect about 2–3 runs per
 setting:
-- `engage.near_m`: G1 `near40` **3.31 (−0.07), worse**; next G1b `near90` (rebased on `best`). If 90
-  wins, bracket it with 75 / 120; if it loses, 60 m is confirmed.
+- `engage.near_m`: **done, 60 m confirmed.** G1 `near40` 3.31 (−0.07), G1b `near90` 3.23 (−0.15).
+- **Next: G5 `farm_safe80` (in progress)**, then G6 `farm_reach120`, G7 `farm_hp45`.
 - Farming gates (cube collection was the largest single gain, +0.38, and its gates are untuned):
   `farm_safe80` (`farm.safe_m` 120 → 80), `farm_reach120` (`farm.max_dist` 80 → 120),
   `farm_hp45` (`farm.min_hp` 0.6 → 0.45)
