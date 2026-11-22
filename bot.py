@@ -171,6 +171,11 @@ class Bot:
         """Kill cubes within reach while retreating (pacing.loot_more): computed once per decision."""
         if getattr(self, "_rl_tick", None) != obs["tick"]:
             me = obs["self"]
+            if tuning.get("farm.cap"):
+                from farm import at_cap
+                if at_cap(self.cfg, me):
+                    self._rl_tick, self._rl_goal = obs["tick"], None
+                    return None
             walk = float((me.get("stats") or {}).get("walk_speed", self.cfg["mech"]["walk_speed"]))
             self._rl_tick = obs["tick"]
             self._rl_goal = self.pacer.loot_goal(obs, self.zone, self.threats.hunters(me["pos"]), self.threats,

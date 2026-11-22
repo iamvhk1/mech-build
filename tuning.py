@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "fresh_hide"
+ACTIVE = "cap"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -105,7 +105,9 @@ DEFAULTS = {
     "farm.safe_m": 120.0,           # farm only with no known hunter within this distance
     "farm.min_hp": 0.6,             # ...and HP at least this fraction (crates/cubes)
     "farm.max_dist": 80.0,
-    "farm.bank": False,             # M2: leave cubes on the floor at >= 95% HP; walk over them below 70% HP          # consider crates/cubes/drones within this distance
+    "farm.bank": False,
+    "farm.cap": False,              # N8: at the cube stat cap stop farming / looting cubes (they only add size)
+    "farm.wounded": False,          # N8: below 85% HP no crates / drones (dealing damage restarts regen)             # M2: leave cubes on the floor at >= 95% HP; walk over them below 70% HP          # consider crates/cubes/drones within this distance
     # diagnostics (never in a real preset): from this match time on, stand still and hold fire, so
     # the score reads out the place points earned before it
     "probe.idle_at": None,
@@ -655,6 +657,15 @@ PRESETS = {
               "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
               "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
               "arm.roof_until": 100.0, "retreat.fresh_hide": True, "farm.drone_use_safe_m": True},
+    "cap": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
+              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
+              "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+              "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0, "arm.early": True,
+              "fight.press": True, "arm.laser_after": 45.0, "fight.hunt": True, "early.until": 120.0,
+              "early.drones": True, "pacing.loot_more": True, "upgrades": "durable", "retreat.away": True,
+              "fight.los": True, "lightning.any_mech": True, "retreat.fallback": True, "fight.mpc": True,
+              "mpc.chase": True, "mpc.retreat": True, "fight.narrow": True, "narrow.after_kills": 2,
+              "arm.roof_until": 100.0, "retreat.fresh_hide": True, "farm.cap": True, "farm.wounded": True},
     "hold": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
               "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,

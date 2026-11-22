@@ -34,6 +34,17 @@ BANK_USE_HP = 0.70      # ...and walk over a remembered one within BANK_USE_M be
 BANK_USE_M = 25.0
 
 
+def at_cap(cfg: dict, me: dict) -> bool:
+    """At or past the cube stat cap, and no upgrade offer within 2 more cubes."""
+    cc = cfg.get("cubes", {})
+    cap = int(cc.get("stat_cap", 10))
+    n = int(me.get("cubes", 0))
+    if n < cap:
+        return False
+    nxt = [x for x in cc.get("upgrade_thresholds", []) if x > n]
+    return not (nxt and nxt[0] - n <= 2)
+
+
 class Farmer:
     target_roof = False  # the current farm goal is up on a roof (navigation must allow roof jumps)
 
@@ -192,6 +203,12 @@ class Farmer:
                 return True
             return zone.time_until_outside(p) > math.dist(p[:2], pos[:2]) / max(1.0, walk) + CUBE_SPEED_MARGIN_S
 
+        # farm.cap: past the cube stat cap a cube adds only size (bigger target), so stop farming unless
+        # an upgrade offer is at most 2 cubes away. farm.wounded: below 85% HP no crates / drones (dealing
+        # damage restarts the 5 s regen timer); cubes are still fine (silent, +4% heal each)
+        if tuning.get("farm.cap") and at_cap(self.cfg, me):
+            return None
+        wounded = bool(tuning.get("farm.wounded")) and             float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0))) < 0.85
         # 1) a cube nearby (from our crate, or any cube with farm.cubes); with farm.bank, leave cubes on
         # the floor at high HP and come back for them as instant heals mid-fight
         hp_frac = float(me.get("hp", 1.0)) / max(1.0, float(me.get("max_hp", 1.0)))
@@ -207,7 +224,7 @@ class Farmer:
                 self.target_roof = not self._street("cube", c)
                 return (c.pos[0], c.pos[1])
         # 2) a drone to shoot (C2)
-        if tuning.get("farm.drones") and self.safe_for_drone(me, hunters, threats, has_target):
+        if tuning.get("farm.drones") and not wounded and self.safe_for_drone(me, hunters, threats, has_target):
             if self.target_drone is not None and self.target_drone.id in self.drones:
                 self.target_drone = self.drones[self.target_drone.id]  # audit A3: latest position, not first seen
             if self.target_drone is None or self.target_drone.id not in self.drones:
@@ -226,7 +243,7 @@ class Farmer:
             self.target_drone = None
         # 3) a crate to shoot (farm.crate_max_lanes: skip crates in open plazas)
         crate_lanes = tuning.get("farm.crate_max_lanes")
-        if tuning.get("farm.crates"):
+        if tuning.get("farm.crates") and not wounded:
             if self.target is None or self.target.id not in self.crates:
                 crates = [c for c in self.crates.values()
                           if math.dist(c.pos[:2], pos[:2]) <= max_d and zone_ok(c.pos) and (self._street("crate", c) or roof_ok)
