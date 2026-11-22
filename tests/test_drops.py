@@ -65,7 +65,7 @@ class DropTest(unittest.TestCase):
         self.assertEqual(tuning.get("drops.safe_m"), 80.0)
 
     def test_disabled_when_switch_off(self):
-        tuning.use("best")  # drops.enabled: False in best
+        tuning.use("cubes")  # drops.enabled: False (best has drops on since run B4)
         self.assertFalse(tuning.get("drops.enabled"))
         dropper = DropContester(self.core, CFG)
         obs = self.make_obs(drops=[{"id": 10, "pos": [30, 0, 0], "radius": 8.0, "lands_in": 0.0}])

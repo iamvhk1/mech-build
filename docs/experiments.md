@@ -64,7 +64,7 @@ without our kills means a free-for-all). Until E6 exists, the bot plays practice
 | Crates and their cubes (`farm.crates`, C1) | **Good** (3.00, +0.12) | Positive | +4% max HP and damage per cube, upgrade offers; gated on safety, so it happens in quiet moments in both modes. Risk: gunfire and the crate breaking (heard 220 m) reveal us | on | on |
 | All visible cubes / kill drops (`farm.cubes`, C3) | **Good** (3.38, +0.38) | Positive | Walking over dropped cubes makes zero gunfire sound (unlike crates which make 220 m noise and need shooting), gives instant HP healing (+4% max HP healed per cube), damage bonus, and faster upgrade offers; safe walks only | on | on |
 | Isolated drones (`farm.drones`, C2) | Tie (3.38 vs 3.38) | Positive | Drones drop 2 cubes (+8% HP and damage) with minimal risk, but in practice safe opportunities are rare and gun sound can attract house bots. Kept off in best; candidate for FFA overlay | off | on |
-| Supply drops (`drops.enabled`, E5) | **Bad in practice** (2.81 vs 3.38, −0.57) | Positive | Drops land on open ground in the closing circle where the 15-bot squad concentrates; standing 4s in an 8m open ring invites swarming. In FFA, bots scatter and 3 cubes + full heal is game-winning | off in best | on |
+| Supply drops (`drops.enabled`, E5) | **Good** (3.46 vs 3.38, +0.08, run B4). F1's 2.81 was invalid: a bug turned farming off whenever drops were on | Positive | Drops land at ~1:35, 2:45, 3:55, inside the window where we earn and die; each gives full HP, full energy and 3 cubes. Taken only when no hunter is within 80 m | on | on |
 | Cover fighting (`fight.cover`, B1) | Dropped offline: duel screen no better (0.74 vs 0.75), worse with a wider search | Unknown | Only ~2% of spots within 24 m are hidden from an enemy 40–120 m away (long street sightlines) | off | off |
 
 Implementation note (E6): `tuning.py` presets gain a free-for-all overlay (e.g.
@@ -130,10 +130,15 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 19 | `mode_detect` (run D1) | `2c8c63e` | 3.31 | Initial mode detection: 3.31 vs 3.38 (−0.07). Diagnosis: the broad zone radius check (`r > 70` m) allowed occasional mid-game squad zone deaths to be misclassified as unassisted combat deaths, latching into FFA mode with `retreat.hold_fire: True` and `retreat.on_hunters: True`. Against 15 hunters, holding fire caused the bot to die without fighting back. Fixed in D1b. |
 | 20 | `mode_detect` (run D1b) | `c923e9b` | **3.38** | Hardened mode detection + safe FFA overlay: 3.38 vs 3.38 (exact match, zero regression on practice). Pre-shrink check (t < 60s) avoids false triggers on squad zone deaths, and 120s lock prevents late-game false triggers. Mode detection is now proven safe for practice while providing crucial survival adaptation in qualifiers/finals. Kept; incorporated into `best`. Baseline remains **3.38**. |
 | 21 | `burn` (run Z1) | `9edce64` | 3.38 | Final burn positioning on the 3.38 baseline: 3.38 vs 3.38 (exact tie). In practice against the 15-bot squad, matches rarely reach the final 25 m collapse at ~6:55, so practice score is dominated by early/mid-game kills. Center holding and suppressed retreat are essential in FFA end-games where surviving the 260 DPS burn decides 1st place. Kept off in practice `best`; enabled in `FFA_OVERLAY`. Baseline remains **3.38**. |
-| 22 | `drops` (run F1) | `5bfc603` | 2.81 | Safe supply drop contesting on the 3.38 baseline: 2.81 vs 3.38 (−0.57). Capturing an 8 m drop ring on open ground inside the closing circle pulls the bot into central crossfire where the 15-bot squad concentrates, leading to fatal focus-fire. Kept OFF in `best`. Retained in `FFA_OVERLAY` where enemy mechs scatter and +3 cubes + full HP heal is valuable in quiet pockets. Baseline remains **3.38**. |
+| 22 | `drops` (run F1) | `5bfc603` | 2.81 | **Invalid (audit A1, 2026-11-22):** the drops branch in `bot.py` was an `elif` that skipped crate and cube farming whenever drops were enabled, so this run measured "no farming" (2.81 ≈ the 2.88 pre-farming score), not drops. Re-run as B4 (3.46). Original note: safe supply drop contesting on the 3.38 baseline: 2.81 vs 3.38 (−0.57). Capturing an 8 m drop ring on open ground inside the closing circle pulls the bot into central crossfire where the 15-bot squad concentrates, leading to fatal focus-fire. Kept OFF in `best`. Retained in `FFA_OVERLAY` where enemy mechs scatter and +3 cubes + full HP heal is valuable in quiet pockets. Baseline remains **3.38**. |
 | 23 | `near40` (run G1) | `fcda789` | 3.31 | Tighter engagement distance (40 m vs 60 m) on the 3.38 baseline: worse (−0.07, ~3 places). Fewer engagements mean fewer kills, and kills are practice points. Together with run 1d (any range, 2.02) this brackets the best value at 60 m or a bit above. Keep 60 m; next try 90 m (G1b). |
 | 24 | `near90` (run G1b) | `f114606` | 3.23 | Wider engagement distance (90 m vs 60 m) on the 3.38 baseline (`near90` rebased on `best`): worse (−0.15, ~7 places). Longer-range fights against a squad that shares vision cost more than the extra kills earn (same lesson as run 1d). With G1 (40 m, −0.07) this confirms **60 m** as the best value; the sweep on `engage.near_m` is closed. |
-| 25 | `farm_safe80` (run G5) | – | pending | Farm with hunters closer: no known hunter within 80 m (was 120 m) on the 3.38 baseline. Cube collection was the largest single gain (+0.38); more farming windows may add cubes. |
+| 25 | `farm_safe80` (run G5) | `b0c4e78` | 3.35 | Farm with hunters closer (no known hunter within 80 m, was 120 m): −0.03, a tie. Kept 120 m. Stage G fine-tuning stopped here: the top-32 cut is ~6.0, so hundredths don't matter. |
+| 26 | `center` (run B1) | `8cd5b4b` | 2.19 | Hold the next zone centre all match (burn mode from t = 0): much worse (−1.19). Confounded: burn mode also turns off farming (~−0.50), retreat (~−0.23), pickups, laser dodging and strafing, and stands still in the open. Even so, the zone only kills house bots at the final burn, which we never reach. Dropped. |
+| 27 | `probe_idle120` (run B2, diagnostic) | `c864020` | 1.25 | `best` until 2:00, then stand still and hold fire. Score ≈ points earned by 2:00. |
+| 28 | `probe_idle240` (run B3, diagnostic) | `ab5255b` | 3.15 | `best` until 4:00, then idle. Points by 4:00. See "Where our points come from" below. |
+| 29 | `drops` (run B4, with fix A1) | `6143491` | **3.46** | **New best** (+0.08). First valid drops test. Drops land in the 1:35–3:55 window where we earn and die; full HP + 3 cubes each. Now part of `best`. |
+| 30 | `late180` (run C1) | – | pending | `best` (with drops) + more cautious retreat from 3:00: retreat on 3+ hunters within 100 m or >20% HP lost in 2 s, enter 50% / exit 90%, keep shooting back. Practice mode only. |
 
 ## Batch 1 (done)
 
@@ -146,7 +151,12 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 
 ## Master plan (decided 2026-11-21; replaces the earlier roadmap)
 
-**Where we stand:** best score **3.38** (run C3). `best` = last-resort retreat + strafing + crate
+**Update 2026-11-22:** best is **3.46** (run B4: `best` + supply drops after audit fix A1). The
+leaderboard has 347 teams; the top 5 score 6.38–6.58 and the top-32 cut is ~6.0, so tuning sweeps
+are stopped. Practice house bots are 4 easy, 4 medium, 4 hard and 3 expert (track page). See
+"Batch B: where our points come from" below.
+
+**Where we stood on 2026-11-21:** best score **3.38** (run C3). `best` = last-resort retreat + strafing + crate
 farming + all visible cubes on the current code; new runs compare against 3.38. Average placement
 climbs to ~12th-13th.
 Leading teams score ~5–6; qualifying needs a top-32 best practice score. The plan is ordered by
@@ -248,12 +258,31 @@ Worth up to 15 points per match, but only if we are alive at ~6:55.
 
 Stage F complete! Best score remains **3.38**. Next: Stage G (tuning sweeps on `best`: engagement distance, retreat thresholds).
 
+### Batch B (2026-11-22): where our points come from
+
+No replays or logs come back from practice, so the score is the only channel. Matches are
+deterministic on the fixed seeds, so a probe that changes behaviour only after time T reads out what
+happens after T. Probes play `best` until T, then stand still and hold fire (`probe.idle_at`).
+
+| Window | Points | Source |
+| :--- | :--- | :--- |
+| 0:00–2:00 | 1.25 | B2 |
+| 2:00–4:00 | 1.90 | B3 − B2 |
+| 4:00–5:25 | 0.23 | 3.38 − B3 |
+| after 5:25 | 0 | Z1 tied exactly; burn play starts at ~5:25 |
+
+Reading, with the squad rules ("one early, more as you thin them out, all of them late"): about one
+kill against the lone easy bot by 2:00, then our best earning rate (~1 point/min) during the
+escalation, then death around 3:00–4:30 when several hunters are on us. Living longer in that window
+is the lever (each extra minute ≈ +1 point); hiding alone earns nothing in practice because house
+bots die only to us or the zone (and the zone kills them only at the final burn, ~6:55).
+
 ### Stage G: tuning sweeps (small gains; last)
 
 Three values each for the settings that mattered, one run per value. Expect about 2–3 runs per
 setting:
 - `engage.near_m`: **done, 60 m confirmed.** G1 `near40` 3.31 (−0.07), G1b `near90` 3.23 (−0.15).
-- **Next: G5 `farm_safe80` (in progress)**, then G6 `farm_reach120`, G7 `farm_hp45`.
+- G5 `farm_safe80`: 3.35, a tie. **Stage G stopped** (see Batch B): G6/G7 presets kept, not run.
 - Farming gates (cube collection was the largest single gain, +0.38, and its gates are untuned):
   `farm_safe80` (`farm.safe_m` 120 → 80), `farm_reach120` (`farm.max_dist` 80 → 120),
   `farm_hp45` (`farm.min_hp` 0.6 → 0.45)
@@ -312,6 +341,15 @@ Bugs that misread the rules cost more than any tuning (the trigger-timing bug al
    too-conservative forgetting distance (25 m; protocol §8 makes anything within 45 m with no
    building in the way always visible). Both fixed before pushing; a cube at a crate's spot now also
    proves the crate is gone.
+
+5. **Audit of the 2026-11-21/22 commits (drones, mode detection, burn, drops), 2026-11-22:**
+   - A1 (critical): the drops branch skipped farming whenever drops were enabled. That invalidated F1 and
+     turned farming off in the free-for-all overlay. Fixed; `drops` is now action-identical to `best`
+     before the first drop.
+   - A2: mode detection locked to practice at 2:00. It now also switches on two laser beams from one mech
+     ending on another mech far from us, at any time.
+   - A3: the farmed drone's position was frozen at first sight. Fixed.
+   - A4 (open): lightning skips a mech target when an NPC is the closest threat. Goes in the final run.
 
 Repeat the audit after each new module, and add a synthetic test for every rule the recording
 can't exercise.

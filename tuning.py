@@ -71,9 +71,10 @@ PRESETS = {
     # best so far: run 1c settings (2.54); + trigger-timing fix (code, run B0) 2.90; + shootability
     # fix (code, B0b) 2.85; + strafing (run B-strafe) 2.88, kept by decision despite the tie;
     # + crate farming (run C1) 3.00; + all visible cubes (run C3) 3.38; + mode detection (run D1b) 3.38
+    # + supply drops with the A1 fix (run B4) 3.46
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-             "farm.crates": True, "farm.cubes": True, "mode.detect": True},
+             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -177,7 +178,8 @@ PRESETS = {
     # and die around 3:00-4:30, when several hunters are on us at once)
     "late180": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                 "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                "farm.crates": True, "farm.cubes": True, "mode.detect": True, "late.at": 180.0},
+                "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                "late.at": 180.0},
     # Stage D: Free-for-all overlay preset (for testing / manual verification)
     "ffa": {"retreat.hp_enter": 0.50, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
             "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
