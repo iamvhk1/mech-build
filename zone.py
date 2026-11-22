@@ -102,6 +102,13 @@ def rotation_target(zone: Zone, pos: Sequence[float]) -> Tuple[Tuple[float, floa
     from the following shrink's edge); if we are already that deep, stay where we are."""
     cx, cy, r = zone.next_circle()
     margin = min(60.0, max(10.0, 0.35 * r)) if r > 0 else 0.0
+    try:
+        import tuning
+        edge = tuning.get("zone.edge_m")
+    except Exception:  # pragma: no cover
+        edge = None
+    if edge is not None and r > 2 * float(edge):
+        margin = float(edge)  # edge play: stand just inside the next circle, the storm guards our back
     if r <= margin:
         return (cx, cy), r
     dx, dy = pos[0] - cx, pos[1] - cy

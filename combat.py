@@ -162,7 +162,7 @@ class Combat:
         s1 = self.slots(me)[1]
         kind1 = s1["kind"] if s1 else None
         enemy_near = min((m.dist for m in targets if m.kind == "mech"), default=1e9)
-        late = zone is not None and zone.known and zone.current()[2] <= LATE_ZONE_R
+        late = zone is not None and zone.known and zone.current()[2] <= float(tuning.get("mortar.swap_r"))
 
         def visible(kind: str, max_d: float):
             best, bd = None, max_d

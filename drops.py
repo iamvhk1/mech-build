@@ -89,7 +89,7 @@ class DropContester:
                     continue
 
             lands_in = float(d.get("lands_in", 0.0))
-            if lands_in > eta + 5.0:
+            if lands_in > eta + float(tuning.get("drops.early_s")):
                 continue
 
             if not self.is_safe(pos, dp, hunters, threats, has_target):
