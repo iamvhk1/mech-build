@@ -29,6 +29,7 @@ class Armer:
         self.known: Dict[int, dict] = {}   # id -> pickup dict, plus "t" last seen
         self.street: Dict[int, bool] = {}
         self.target_id: Optional[int] = None
+        self.target_roof = False   # the chosen pickup is up on a roof (navigation must allow roof jumps)
         self.mode = ""
 
     def observe(self, obs: dict) -> None:
@@ -79,6 +80,9 @@ class Armer:
         max_d = float(tuning.get("arm.max_dist"))
         best, bd = None, max_d
         first = "laser" if tuning.get("arm.prefer_laser") else "lightning"
+        roof_until = tuning.get("arm.roof_until")
+        roof_ok = roof_until is not None and float(obs["t"]) < float(roof_until) and \
+            float(me.get("energy", 0.0)) >= 60.0
         if first == "laser" and kind1 == "laser":
             return None  # already hold the preferred weapon
         for p in self.known.values():
@@ -86,7 +90,7 @@ class Armer:
                 continue
             d = math.dist(p["pos"][:2], pos[:2])
             limit = bd if p["id"] != self.target_id else max(bd, max_d * KEEP_MULT)
-            if d >= limit or not self._on_street(p):
+            if d >= limit or (not self._on_street(p) and not roof_ok):
                 continue
             if zone is not None and getattr(zone, "known", False) and \
                     zone.time_until_outside(p["pos"]) <= d / max(1.0, walk) + ZONE_MARGIN_S:
@@ -108,6 +112,7 @@ class Armer:
                     continue
                 best, bd = p, d
         self.target_id = best["id"] if best is not None else None
+        self.target_roof = best is not None and not self._on_street(best)
         if best is not None:
             self.mode = f"arm {best['kind']} {bd:.0f}m"
         return best

@@ -179,6 +179,13 @@ class Match:
         self.pickups = {}
         kinds = ["mortar", "laser", "lightning"]
         for i, (x, y) in enumerate(self._spawns(int(self.cfg["loot"].get("floor_count", 40)), sep0=30.0)):
+            if self.rng.random() < self.cfg["loot"].get("floor_roof_fraction", 0.25):
+                for _ in range(30):  # a nearby roof cell (floor well above the ground)
+                    q = self.core.nearest_walkable(x + self.rng.uniform(-60, 60), y + self.rng.uniform(-60, 60),
+                                                   self.m["radius"], False)
+                    if q is not None and 6.0 <= self.core.floor_z(*q) - self.core.ground_z(*q) <= 20.0:
+                        x, y = q
+                        break
             self.pickups[8000 + i] = {"kind": kinds[i % 3], "pos": [x, y, self.core.floor_z(x, y)]}
         self.events = []
         self.last_combat_t = -1e9
