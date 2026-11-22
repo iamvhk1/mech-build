@@ -31,11 +31,13 @@ class VisualizerTest(unittest.TestCase):
         self.assertEqual(rec["id"], "server_match")
         self.assertGreaterEqual(rec["frames_count"], 300)
         self.assertIn("frames", rec)
+        self.assertIn("kills", rec)
         first_frame = rec["frames"][0]
         self.assertIn("t", first_frame)
         self.assertIn("self", first_frame)
         self.assertIn("zone", first_frame)
         self.assertIn("pos", first_frame["self"])
+        self.assertIn("kills", first_frame["self"])
 
     def test_record_squad(self):
         rec = record_squad(seed=42, preset="best")
@@ -47,6 +49,11 @@ class VisualizerTest(unittest.TestCase):
         self.assertIn("t", first_frame)
         self.assertIn("self", first_frame)
         self.assertIn("zone", first_frame)
+        self.assertIn("kills", first_frame["self"])
+        last_frame = rec["frames"][-1]
+        self.assertEqual(last_frame["self"]["kills"], rec["kills"])
+        kills_seq = [f["self"]["kills"] for f in rec["frames"]]
+        self.assertTrue(all(a <= b for a, b in zip(kills_seq, kills_seq[1:])))
 
 
 if __name__ == "__main__":

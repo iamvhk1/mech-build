@@ -26,6 +26,7 @@
   let playSpeed = 1.0;
   let lastAnimTime = 0;
   let frameAccumulator = 0;
+  let lastRenderedKills = null;
 
   // Camera
   let camX = 0;
@@ -139,6 +140,31 @@
       const res = await fetch(`/api/replay?id=${encodeURIComponent(id)}`);
       currentReplay = await res.json();
       currentFrameIdx = 0;
+      lastRenderedKills = null;
+
+      // Ensure every frame has an accurate progressive kill count
+      let runningKills = 0;
+      const hasSelfKills = (currentReplay.frames || []).some(f => f.self && f.self.kills !== undefined);
+      if (hasSelfKills) {
+        (currentReplay.frames || []).forEach(f => {
+          if (f.self && f.self.kills !== undefined) {
+            runningKills = f.self.kills;
+          } else if (f.self) {
+            f.self.kills = runningKills;
+          }
+        });
+      } else {
+        const killEvents = (currentReplay.events || [])
+          .filter(e => e.type === 'kill')
+          .sort((a, b) => a.t - b.t);
+        let kIdx = 0;
+        (currentReplay.frames || []).forEach(f => {
+          while (kIdx < killEvents.length && killEvents[kIdx].t <= f.t) {
+            kIdx++;
+          }
+          if (f.self) f.self.kills = kIdx;
+        });
+      }
 
       // Update UI Meta
       document.getElementById('presetPill').textContent = `PRESET: ${currentReplay.preset || 'BEST'}`.toUpperCase();
@@ -1025,7 +1051,10 @@
           ctx.restore();
         }
       } else if (e.type === 'kill') {
-        const target = mechs.find((m) => m.id === e.target);
+        let target = mechs.find((m) => m.id === e.target);
+        if (!target && currentFrameIdx > 0 && currentReplay.frames && currentReplay.frames[currentFrameIdx - 1]) {
+          target = (currentReplay.frames[currentFrameIdx - 1].mechs || []).find((m) => m.id === e.target);
+        }
         if (target) {
           const s = worldToScreen(target.pos[0], target.pos[1]);
           ctx.save();
@@ -1034,7 +1063,7 @@
           ctx.shadowColor = '#f87171';
           ctx.shadowBlur = 10;
           ctx.textAlign = 'center';
-          ctx.fillText('☠ ELIMINATED', s.x, s.y - 32);
+          ctx.fillText(`☠ ELIMINATED #${e.target}`, s.x, s.y - 32);
           ctx.restore();
         }
       }
@@ -1285,7 +1314,19 @@
     // Top Header Pills
     document.getElementById('cubesPill').textContent = `${h.cubes || 0} CUBES`;
     document.getElementById('modePill').textContent = (h.mode || 'PRACTICE').toUpperCase();
-    document.getElementById('killsPill').textContent = `${currentReplay.kills || 0} KILLS`;
+    
+    // Dynamic progressive kill count
+    const kills = (h.kills !== undefined) ? h.kills : (currentReplay.kills || 0);
+    const killsEl = document.getElementById('killsPill');
+    if (killsEl) {
+      killsEl.textContent = `${kills} ${kills === 1 ? 'KILL' : 'KILLS'}`;
+      if (lastRenderedKills !== null && kills > lastRenderedKills) {
+        killsEl.classList.remove('kill-bump');
+        void killsEl.offsetWidth; // trigger reflow for animation restart
+        killsEl.classList.add('kill-bump');
+      }
+      lastRenderedKills = kills;
+    }
 
     // Weapons
     const w0 = (h.weapons && h.weapons[0]) || h.slot0 || {};

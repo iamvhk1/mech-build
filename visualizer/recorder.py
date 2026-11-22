@@ -34,6 +34,7 @@ def record_stream() -> dict:
         frames = []
         events_log = []
         prev_hp = None
+        kills_count = 0
 
         for line in f:
             if not line.strip():
@@ -60,6 +61,7 @@ def record_stream() -> dict:
 
             for e in obs.get("events") or []:
                 if e.get("type") == "kill":
+                    kills_count += 1
                     events_log.append({"t": round(t, 2), "type": "kill", "desc": f"Kill target {e.get('target')}"})
                 elif e.get("type") == "took":
                     events_log.append({"t": round(t, 2), "type": "pickup", "desc": f"Took {e.get('kind')}"})
@@ -76,6 +78,7 @@ def record_stream() -> dict:
                     "energy": round(float(me.get("energy", 100.0)), 1),
                     "max_energy": round(float(me.get("stats", {}).get("energy", 100.0)), 1),
                     "cubes": int(me.get("cubes", 0)),
+                    "kills": kills_count,
                     "weapons": me.get("weapons") or [],
                     "state": getattr(bot.strategy, "state", "rotate"),
                     "mode": getattr(bot.mode_detector, "mode", "practice"),
@@ -142,6 +145,7 @@ def record_stream() -> dict:
         "title": "Real Server Recording (stream.jsonl.gz)",
         "source": "check/stream.jsonl.gz",
         "preset": tuning.ACTIVE,
+        "kills": kills_count,
         "total_time": frames[-1]["t"] if frames else 0,
         "frames_count": len(frames),
         "events": events_log,
@@ -196,6 +200,7 @@ def record_squad(seed: int = 42, preset: str = "best") -> dict:
                 "energy": round(float(m.sim.energy), 1),
                 "max_energy": round(float(m.m["energy"]), 1),
                 "cubes": int(m.cubes),
+                "kills": int(m.kills),
                 "weapons": [
                     {"kind": "gun", "ammo": m.ammo, "reload": round(m.rl, 1), "cd": round(m.cd, 2)},
                     {"kind": m.slot1, "cd": round(m.cd1, 2), "charge": round(m.charge, 2)} if m.slot1 else None
