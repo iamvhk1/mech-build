@@ -21,6 +21,7 @@ from drops import DropContester
 from farm import Farmer
 from fight import CoverFighter
 from mode import ModeDetector
+from pacing import Pacer
 from strafe import Strafer
 from navigation import Navigator, boost_policy
 from roofs import RoofIndex
@@ -65,6 +66,7 @@ class Bot:
         self.strafer = Strafer(self.core, self.cfg, int(hello.get("seed", 0)))
         self.farmer = Farmer(self.core, self.cfg)
         self.dropper = DropContester(self.core, self.cfg)
+        self.pacer = Pacer(self.core, self.cfg)
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
         tuning.set_late(False)
@@ -198,6 +200,7 @@ class Bot:
         self.threats.update(obs)
         self.farmer.observe(obs)
         self.dropper.observe(obs)
+        self.pacer.observe(obs)
         self.mode_detector.observe(obs, self.zone)
         late_at = tuning.get("late.at")
         if late_at is not None and t >= float(late_at) and not tuning.is_late():
@@ -232,8 +235,15 @@ class Bot:
         elif dec.state == "rotate" and not zone_urgent:
             # supply drop first; with no safe drop, fall through to farming (audit A1: this used to
             # be an elif that skipped farming whenever drops were enabled)
-            dg = self.drop_goal(obs, targets) if tuning.get("drops.enabled") else None
-            if dg is not None:
+            # escalation survival first (loot a kill's cubes, split ganging hunters), then drops
+            pg = self.pacer.plan(obs, self.zone, self.threats.hunters(me["pos"]), self.threats,
+                                 self.farmer.cubes, walk) if tuning.get("fight.pacing") else None
+            dg = None
+            if pg is None and tuning.get("drops.enabled"):
+                dg = self.drop_goal(obs, targets)
+            if pg is not None:
+                goal, why = pg, f"pace {self.pacer.mode}"
+            elif dg is not None:
                 goal, why = dg, f"drop {self.dropper.mode}"
             elif tuning.get("farm.crates") or tuning.get("farm.cubes") or tuning.get("farm.drones"):
                 fg = self.farm_goal(obs, targets)
