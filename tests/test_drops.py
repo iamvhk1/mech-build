@@ -211,6 +211,32 @@ class DropsDoNotBlockFarmingTest(unittest.TestCase):
         """The recording ends at 36.8 s, so late180 must act exactly like its base on it."""
         self.assertEqual(self.actions("late180"), self.without("late180", **{"late.at": None}))
 
+    def test_rush_switch_is_on_only_before_early_until(self):
+        tuning.PRESETS["_rush_test"] = dict(tuning.PRESETS["best"], **{"early.until": 20.0})
+        try:
+            tuning.use("_rush_test")
+            import bot as B
+            import gzip
+            import json
+            with gzip.open(os.path.join(ROOT, "check", "stream.jsonl.gz"), "rt") as f:
+                L = [json.loads(line) for line in f]
+            L[0]["map"]["dir"] = os.path.join(ROOT, "arena")
+            b = B.Bot(L[0])
+            seen = []
+            for o in L[1:]:
+                if o.get("type") == "obs":
+                    b.act(o)
+                    seen.append((o["t"], tuning.is_early()))
+            self.assertTrue(all(early == (t < 20.0) for t, early in seen))
+        finally:
+            tuning.use("best")
+            del tuning.PRESETS["_rush_test"]
+
+    def test_fortress_plays_like_best_before_roof_after(self):
+        """roof.after gates roof play: before 3:30 the fortress bot acts exactly like its base."""
+        self.assertEqual(self.actions("fortress"),
+                         self.without("fortress", **{"roof.enabled": False, "roof.after": None, "roof.peek_hp": 0.5}))
+
     def test_late_switch_turns_on_at_late_at(self):
         tuning.PRESETS["_late_test"] = dict(tuning.PRESETS["best"], **{"late.at": 20.0})
         try:

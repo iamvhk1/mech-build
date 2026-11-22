@@ -216,6 +216,19 @@ class LateOverlayTest(unittest.TestCase):
         self.assertTrue(tuning.get("arm.early"))
         tuning.set_mode("practice")
 
+    def test_early_rush_overlay_only_in_practice_and_cleared_by_use(self):
+        tuning.use("rush")
+        self.assertEqual(tuning.get("farm.max_dist"), 120.0)
+        tuning.set_early(True)
+        self.assertEqual(tuning.get("farm.max_dist"), 250.0)
+        self.assertEqual(tuning.get("farm.safe_m"), 60.0)
+        tuning.set_mode("ffa")
+        self.assertEqual(tuning.get("farm.max_dist"), 120.0)  # free-for-all ignores the rush
+        tuning.set_mode("practice")
+        tuning.use("rush")
+        self.assertFalse(tuning.is_early())
+        self.assertEqual(tuning.get("farm.safe_m"), 120.0)
+
     def test_late_overlay_only_in_practice(self):
         self.assertEqual(tuning.get("late.at"), 180.0)
         self.assertFalse(tuning.get("retreat.on_hunters"))

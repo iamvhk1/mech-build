@@ -142,7 +142,9 @@ class Strategy:
                                 why=f"burn r{nxt_r:.0f}m d{d_to_center:.1f}m")
         if self.state == BURN:
             self._set(ROTATE, t)
-        if tuning.get("roof.enabled") and self.roofs is not None and not zone_urgent:
+        roof_after = tuning.get("roof.after")
+        if tuning.get("roof.enabled") and self.roofs is not None and not zone_urgent and \
+                (roof_after is None or t >= float(roof_after)):
             d = self.roof_decision(me, hp, hunters)
             if d is not None:
                 self._set(ROOF, t)

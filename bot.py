@@ -73,6 +73,7 @@ class Bot:
         self.mode_detector = ModeDetector()
         self.mode_detector.reset()
         tuning.set_late(False)
+        tuning.set_early(False)
         self.evade_goal: Optional[Tuple[float, float]] = None
         self.evade_until = -1e9
         self.dest: Optional[Tuple[float, float]] = None
@@ -206,6 +207,10 @@ class Bot:
         self.pacer.observe(obs)
         self.armer.observe(obs)
         self.mode_detector.observe(obs, self.zone)
+        early_until = tuning.get("early.until")
+        want_early = early_until is not None and t < float(early_until)
+        if want_early != tuning.is_early():
+            tuning.set_early(want_early)  # early cube rush on / off (practice only)
         late_at = tuning.get("late.at")
         if late_at is not None and t >= float(late_at) and not tuning.is_late():
             tuning.set_late(True)  # late-match caution from here on (practice only)
