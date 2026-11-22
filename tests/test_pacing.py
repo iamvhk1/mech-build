@@ -53,10 +53,13 @@ class PacingTest(unittest.TestCase):
         self.step(make_obs((0, 0, 0), mechs=[aimed(5, (30, 0, 0))], t=t - 1.0))
         return self.step(make_obs((0, 0, 0), t=t, events=[{"type": "kill", "target": 5}]))
 
-    def test_preset_is_best_plus_pacing(self):
+    def test_preset_is_best_plus_split(self):
+        """Since run C2c, best has pacing on with the split rule off (loot only)."""
         b = tuning._resolve("best")
+        self.assertTrue(b["fight.pacing"])
+        self.assertFalse(b["pacing.split"])
         diff = {k: v for k, v in tuning._resolve("pacing").items() if v != b[k]}
-        self.assertEqual(diff, {"fight.pacing": True})
+        self.assertEqual(diff, {"pacing.split": True})
 
     def test_loots_the_kill_drop(self):
         o = self.kill_at()

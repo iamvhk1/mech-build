@@ -138,7 +138,11 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 | 27 | `probe_idle120` (run B2, diagnostic) | `c864020` | 1.25 | `best` until 2:00, then stand still and hold fire. Score ≈ points earned by 2:00. |
 | 28 | `probe_idle240` (run B3, diagnostic) | `ab5255b` | 3.15 | `best` until 4:00, then idle. Points by 4:00. See "Where our points come from" below. |
 | 29 | `drops` (run B4, with fix A1) | `6143491` | **3.46** | **New best** (+0.08). First valid drops test. Drops land in the 1:35–3:55 window where we earn and die; full HP + 3 cubes each. Now part of `best`. |
-| 30 | `late180` (run C1) | – | pending | `best` (with drops) + more cautious retreat from 3:00: retreat on 3+ hunters within 100 m or >20% HP lost in 2 s, enter 50% / exit 90%, keep shooting back. Practice mode only. |
+| 30 | `late180` (run C1) | `23ed45e` | 3.42 | `best` (with drops) + more cautious retreat from 3:00 (retreat on 3+ hunters within 100 m or >20% HP lost in 2 s, enter 50% / exit 90%, keep shooting back): −0.04, a tie. Time-based caution isn't the lever. Not kept. |
+| 31 | `pacing` (run C2) | `c8322c6` | 3.46 | `best` + `fight.pacing` (loot a kill's cubes; split ganging hunters): an exact tie. Probe C2a showed the loot rule does fire, so the tie was the two rules cancelling, or chance. |
+| 32 | `probe_loot` (run C2a, diagnostic) | `bce0bea` | 1.60 | `pacing`, standing still from the first loot. Far below 3.46, so loot fires early and often in practice. (In the offline squad simulator: 0.95.) |
+| 33 | `pacing_loot` (run C2c) | `bf30d0b` | **3.48** | `best` + loot only (`pacing.split` off): +0.02, a tie under the rule, but the highest score so far with a plausible mechanism (kill cubes heal 4% each and add damage just before the next hunters arrive). **Kept by decision; now part of `best`.** Split stays off. |
+| 34 | `farm_reach120` (run C3) | – | pending | `best` (3.48) + look for crates and cubes up to 120 m away (was 80 m): more cubes, especially in the quiet early phase. |
 
 ## Batch 1 (done)
 
@@ -151,7 +155,9 @@ shootability (`Combat.shot_point`, target preference for shootable mechs; pendin
 
 ## Master plan (decided 2026-11-21; replaces the earlier roadmap)
 
-**Update 2026-11-22:** best is **3.46** (run B4: `best` + supply drops after audit fix A1). The
+**Update 2026-11-22:** best is **3.48** (run C2c: + loot a kill's cubes; before that 3.46, run B4: `best` +
+supply drops after audit fix A1). Offline squad simulator: `tests/squad.py` (bug finding only, not a
+score predictor). The
 leaderboard has 347 teams; the top 5 score 6.38–6.58 and the top-32 cut is ~6.0, so tuning sweeps
 are stopped. Practice house bots are 4 easy, 4 medium, 4 hard and 3 expert (track page). See
 "Batch B: where our points come from" below.

@@ -6,7 +6,7 @@ settings they change from DEFAULTS.
 """
 from __future__ import annotations
 
-ACTIVE = "pacing_loot"
+ACTIVE = "farm_reach120"
 
 DEFAULTS = {
     # upgrade offers: "first" = always choice 0 (Phase 3 behaviour), "ranked" = upgrades.py ranking
@@ -74,10 +74,12 @@ PRESETS = {
     # best so far: run 1c settings (2.54); + trigger-timing fix (code, run B0) 2.90; + shootability
     # fix (code, B0b) 2.85; + strafing (run B-strafe) 2.88, kept by decision despite the tie;
     # + crate farming (run C1) 3.00; + all visible cubes (run C3) 3.38; + mode detection (run D1b) 3.38
-    # + supply drops with the A1 fix (run B4) 3.46
+    # + supply drops with the A1 fix (run B4) 3.46; + loot a kill's cubes (run C2c) 3.48, kept by
+    # decision despite the tie (highest score so far; plausible mechanism)
     "best": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
              "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True},
+             "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+             "fight.pacing": True, "pacing.split": False},
     # Stage B, run B1: best + fight from cover
     "cover": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
               "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.cover": True},
@@ -156,10 +158,11 @@ PRESETS = {
     "farm_safe80": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                     "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
                     "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.safe_m": 80.0},
-    # G6: look further for crates/cubes (120 m instead of 80 m)
+    # G6 / C3: look further for crates/cubes (120 m instead of 80 m); rebased on best (3.48) for C3
     "farm_reach120": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                       "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
-                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "farm.max_dist": 120.0},
+                      "farm.crates": True, "farm.cubes": True, "mode.detect": True, "drops.enabled": True,
+                      "fight.pacing": True, "pacing.split": False, "farm.max_dist": 120.0},
     # G7: farm at lower HP (45% instead of 60%); cubes also heal
     "farm_hp45": {"retreat.hp_enter": 0.35, "retreat.hp_exit": 0.80, "retreat.on_hunters": False,
                   "retreat.on_heavy_damage": False, "retreat.hold_fire": False, "fight.strafe": True,
